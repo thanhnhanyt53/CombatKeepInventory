@@ -1,0 +1,119 @@
+# ============================================================
+# CombatKeepInventory V2
+# Paper 26.1.2
+# ============================================================
+
+combat:
+  # Thời gian combat của CombatKeepInventory.
+  duration-seconds: 10
+
+  # true:
+  #   Chỉ Player -> Player mới tạo combat.
+  #
+  # false:
+  #   Vẫn sử dụng logic Player -> Player.
+  #
+  # Giữ true để plugin không biến PvE thành combat.
+  player-vs-player-only: true
+
+
+# ============================================================
+# DEATH BEHAVIOR
+# ============================================================
+
+death:
+  # PvP kill luôn làm mất inventory.
+  player-kill-drops: true
+
+  # Nếu đang combat nhưng chết bởi PvE/môi trường:
+  # true  = mất inventory
+  # false = giữ inventory
+  combat-death-drops: true
+
+  # Khi không còn combat và không bị player giết:
+  # luôn giữ inventory.
+  non-combat-death-keeps-inventory: true
+
+  # Giữ XP khi giữ inventory.
+  keep-experience: true
+
+
+# ============================================================
+# WORLDGUARD
+# ============================================================
+
+worldguard:
+  # WorldGuard là OPTIONAL.
+  enabled: true
+
+  # Nếu WorldGuard không được cài:
+  # plugin vẫn hoạt động bình thường.
+  fail-open: true
+
+  # Chỉ áp dụng region nếu region có tên nằm trong danh sách.
+  #
+  # Ví dụ:
+  # enabled-regions:
+  #   - arena
+  #   - pvp
+  #   - warzone
+  #
+  # Để [] = không giới hạn theo tên region.
+  enabled-regions: []
+
+  # Nếu true:
+  # CombatKeepInventory chỉ hoạt động trong các region
+  # được liệt kê ở enabled-regions.
+  restrict-to-enabled-regions: false
+
+  # Nếu true:
+  # Các region này sẽ KHÔNG áp dụng CombatKeepInventory.
+  excluded-regions:
+    - __global__
+
+  # Nếu người chơi chết ở region không được phép:
+  # true  = plugin không can thiệp PlayerDeathEvent.
+  # false = vẫn áp dụng logic bình thường.
+  ignore-death-outside-regions: false
+
+  # Khi bắt đầu PvP, yêu cầu cả attacker và victim
+  # phải nằm trong vùng được phép.
+  require-both-players-in-region: true
+
+
+# ============================================================
+# PVPMANAGER
+# ============================================================
+
+pvpmanager:
+  # PvPManager là OPTIONAL.
+  enabled: true
+
+  # Sử dụng combat state của PvPManager nếu plugin tồn tại.
+  use-combat-state: true
+
+  # Nếu PvPManager không tồn tại:
+  # true = fallback về CombatKeepInventory.
+  # false = không có PvPManager thì không dùng integration.
+  fallback-to-own-combat: true
+
+  # Nếu PvPManager nói player đang combat,
+  # CombatKeepInventory cũng coi player đang combat.
+  inherit-combat-state: true
+
+  # Nếu PvPManager đã xác định death là PvP:
+  # true = bắt buộc DROP.
+  trust-last-pvp-death: true
+
+
+# ============================================================
+# DEBUG
+# ============================================================
+
+debug:
+  enabled: false
+
+  combat: false
+  worldguard: false
+  pvpmanager: false
+  death: false
