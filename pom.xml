@@ -7,10 +7,6 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- ===================================================== -->
-    <!-- PROJECT INFORMATION                                   -->
-    <!-- ===================================================== -->
-
     <groupId>com.votri</groupId>
     <artifactId>CombatKeepInventory</artifactId>
     <version>2.0.0</version>
@@ -24,27 +20,13 @@
 
     <packaging>jar</packaging>
 
-
-    <!-- ===================================================== -->
-    <!-- PROPERTIES                                            -->
-    <!-- ===================================================== -->
-
     <properties>
-
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <!-- Paper 26.1.2 / Java 25 -->
-        <maven.compiler.release>25</maven.compiler.release>
-
         <java.version>25</java.version>
-
+        <maven.compiler.release>25</maven.compiler.release>
     </properties>
-
-
-    <!-- ===================================================== -->
-    <!-- REPOSITORIES                                          -->
-    <!-- ===================================================== -->
 
     <repositories>
 
@@ -54,7 +36,7 @@
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
 
-        <!-- WorldEdit / WorldGuard -->
+        <!-- EngineHub / WorldGuard -->
         <repository>
             <id>enginehub</id>
             <url>https://maven.enginehub.org/repo/</url>
@@ -62,29 +44,23 @@
 
     </repositories>
 
-
-    <!-- ===================================================== -->
-    <!-- DEPENDENCIES                                          -->
-    <!-- ===================================================== -->
-
     <dependencies>
 
-        <!-- ================================================= -->
-        <!-- PAPER API                                         -->
-        <!-- ================================================= -->
+        <!-- ============================================== -->
+        <!-- PAPER 26.1.2                                  -->
+        <!-- ============================================== -->
 
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>26.1.2-R0.1-SNAPSHOT</version>
+            <version>26.1.2.build.74-stable</version>
             <scope>provided</scope>
         </dependency>
 
-
-        <!-- ================================================= -->
-        <!-- WORLDGUARD 7.0.16                                 -->
-        <!-- OPTIONAL AT RUNTIME                               -->
-        <!-- ================================================= -->
+        <!-- ============================================== -->
+        <!-- WORLDGUARD 7.0.16                             -->
+        <!-- OPTIONAL                                      -->
+        <!-- ============================================== -->
 
         <dependency>
             <groupId>com.sk89q.worldguard</groupId>
@@ -96,112 +72,77 @@
 
     </dependencies>
 
-
-    <!-- ===================================================== -->
-    <!-- BUILD                                                 -->
-    <!-- ===================================================== -->
-
     <build>
 
         <finalName>CombatKeepInventory-${project.version}</finalName>
 
         <resources>
-
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>false</filtering>
             </resource>
-
         </resources>
-
 
         <plugins>
 
-            <!-- ============================================= -->
-            <!-- MAVEN COMPILER                                -->
-            <!-- ============================================= -->
+            <!-- ========================================== -->
+            <!-- COMPILER                                  -->
+            <!-- ========================================== -->
 
             <plugin>
-
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
 
                 <configuration>
-
                     <release>25</release>
-
                     <encoding>UTF-8</encoding>
-
                     <parameters>true</parameters>
-
-                    <showWarnings>true</showWarnings>
-
-                    <showDeprecation>true</showDeprecation>
-
                 </configuration>
-
             </plugin>
 
-
-            <!-- ============================================= -->
-            <!-- JAR PLUGIN                                    -->
-            <!-- ============================================= -->
+            <!-- ========================================== -->
+            <!-- JAR                                       -->
+            <!-- ========================================== -->
 
             <plugin>
-
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.4.2</version>
 
                 <configuration>
-
                     <archive>
-
                         <manifest>
-
                             <addDefaultImplementationEntries>
                                 true
                             </addDefaultImplementationEntries>
-
                         </manifest>
-
                     </archive>
-
                 </configuration>
-
             </plugin>
 
-
-            <!-- ============================================= -->
-            <!-- CLEAN PLUGIN                                  -->
-            <!-- ============================================= -->
+            <!-- ========================================== -->
+            <!-- CLEAN                                     -->
+            <!-- ========================================== -->
 
             <plugin>
-
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-clean-plugin</artifactId>
                 <version>3.4.1</version>
-
             </plugin>
 
-
-            <!-- ============================================= -->
-            <!-- RESOURCES PLUGIN                              -->
-            <!-- ============================================= -->
+            <!-- ========================================== -->
+            <!-- RESOURCES                                 -->
+            <!-- ========================================== -->
 
             <plugin>
-
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.3.1</version>
 
                 <configuration>
-
                     <encoding>UTF-8</encoding>
-
                 </configuration>
-
             </plugin>
 
         </plugins>
