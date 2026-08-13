@@ -1,0 +1,70 @@
+name: Build Plugin
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Plugin
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Show project structure
+        run: |
+          echo "=== ROOT ==="
+          pwd
+          ls -la
+
+          echo "=== JAVA ==="
+          find src/main/java -type f -print
+
+          echo "=== RESOURCES ==="
+          find src/main/resources -type f -print
+
+      - name: Verify files
+        run: |
+          test -f pom.xml
+          test -f src/main/resources/plugin.yml
+          test -f src/main/resources/config.yml
+          test -n "$(find src/main/java -name '*.java' -print -quit)"
+
+      - name: Build with Maven
+        run: mvn -B clean package
+
+      - name: Inspect target
+        run: |
+          echo "=== TARGET ==="
+          find target -type f -print
+
+          echo "=== JAR CONTENT ==="
+          jar tf target/*.jar
+
+      - name: Verify JAR
+        run: |
+          JAR=$(find target -maxdepth 1 -name '*.jar' | head -n 1)
+
+          echo "JAR: $JAR"
+
+          test -n "$JAR"
+          jar tf "$JAR" | grep -F "plugin.yml"
+          jar tf "$JAR" | grep -E '\.class$'
+
+      - name: Upload plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: CombatKeepInventory
+          path: target/*.jar
+          if-no-files-found: error
