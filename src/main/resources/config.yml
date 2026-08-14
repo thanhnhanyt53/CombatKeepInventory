@@ -1,0 +1,223 @@
+# ============================================================
+# CombatKeepInventory v1.0.0a
+# ============================================================
+
+# ============================================================
+# PLATFORM
+# ============================================================
+
+platform:
+
+  # Available:
+  #
+  # auto
+  # paper
+  # purpur
+  # spigot
+  #
+  # auto is recommended.
+  mode: auto
+
+  # If true, the plugin will disable itself when the detected
+  # platform does not match "mode".
+  #
+  # Recommended: false
+  strict: false
+
+
+# ============================================================
+# COMBAT
+# ============================================================
+
+combat:
+
+  # Combat tag duration in seconds.
+  duration-seconds: 10
+
+  # Only Player vs Player damage starts the CombatKeepInventory
+  # combat tag.
+  player-vs-player-only: true
+
+
+# ============================================================
+# DEATH BEHAVIOR
+# ============================================================
+
+death:
+
+  # Direct Player vs Player kill always drops inventory.
+  #
+  # This overrides the server gamerule keepInventory.
+  player-kill-drops: true
+
+  # If a player is still combat-tagged but dies from:
+  #
+  # - Mob
+  # - Lava
+  # - Fall
+  # - Void
+  # - Fire
+  # - Environment
+  #
+  # true  = DROP
+  # false = KEEP
+  combat-death-drops: false
+
+  # Death outside combat.
+  #
+  # true  = KEEP
+  # false = DROP
+  non-combat-death-keeps-inventory: true
+
+  # Keep XP when inventory is kept.
+  keep-experience: true
+
+
+# ============================================================
+# WORLDS
+# ============================================================
+
+worlds:
+
+  enabled: true
+
+  # CombatKeepInventory is completely disabled in these worlds.
+  disabled-worlds:
+    - exampleworld
+
+
+# ============================================================
+# PVP
+# ============================================================
+
+pvp:
+
+  # Global PvP state controlled by /cki pvp.
+  enabled: true
+
+  # When PvP is disabled:
+  #
+  # true  = Cancel Player vs Player damage.
+  # false = Allow PvP damage but do not create a CKI tag.
+  block-pvp-when-disabled: true
+
+  command:
+
+    # true  = Permission required.
+    # false = Everyone can use /cki pvp on/off.
+    require-permission: true
+
+    permission: combatkeepinventory.pvp
+
+
+  # ==========================================================
+  # COMBAT LOG
+  # ==========================================================
+
+  combat-log:
+
+    enabled: true
+
+    # Check CombatKeepInventory's own combat state.
+    check-own-combat: true
+
+    # Check PvPManager combat state.
+    check-pvpmanager: true
+
+    # Minimum remaining time required.
+    #
+    # 0 = Any active combat tag.
+    minimum-remaining-seconds: 0
+
+    # Commands executed by console.
+    #
+    # Available placeholders:
+    #
+    # %player%
+    # %uuid%
+    #
+    commands:
+      - "kill %player%"
+
+    broadcast: true
+
+    broadcast-message: "&c%player% combat-logged!"
+
+    log: false
+
+
+# ============================================================
+# WORLDGUARD
+# ============================================================
+
+worldguard:
+
+  # WorldGuard is optional.
+  enabled: true
+
+  # true  = Continue if WorldGuard is unavailable or fails.
+  # false = Deny the WorldGuard-dependent action.
+  fail-open: true
+
+  # If true, only regions in this list are accepted.
+  #
+  # [] = no name restriction.
+  enabled-regions: []
+
+  restrict-to-enabled-regions: false
+
+  # Regions ignored by CombatKeepInventory.
+  excluded-regions:
+    - __global__
+
+  # If true, death behavior is only handled when the player
+  # is inside an allowed WorldGuard region.
+  ignore-death-outside-regions: false
+
+  # Both attacker and victim must be in an allowed region.
+  require-both-players-in-region: true
+
+  # If false, WorldGuard will only prevent combat tagging.
+  # If true, Player vs Player damage itself can be cancelled.
+  block-pvp-when-denied: false
+
+
+# ============================================================
+# PVPMANAGER
+# ============================================================
+
+pvpmanager:
+
+  # PvPManager is optional.
+  enabled: true
+
+  # Read PvPManager combat state.
+  use-combat-state: true
+
+  # If PvPManager cannot be read, use CombatKeepInventory's
+  # own combat state.
+  fallback-to-own-combat: true
+
+  # Keep the integration compatible with future PvPManager
+  # versions without a hard compile dependency.
+  inherit-combat-state: true
+
+  # Reserved compatibility option for PvPManager death state.
+  trust-last-pvp-death: true
+
+
+# ============================================================
+# DEBUG
+# ============================================================
+
+debug:
+
+  enabled: false
+
+  combat: false
+
+  worldguard: false
+
+  pvpmanager: false
+
+  death: false
