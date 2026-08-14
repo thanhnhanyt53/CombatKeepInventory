@@ -40,7 +40,7 @@ command:
 
   info:
     header: "&8&m-----------------------------"
-    title: "&cCombatKeepInventory &f1.0.0"
+    title: "&cCombatKeepInventory &f1.1.0"
     platform: "&7Platform: &f%platform%"
     selected-platform: "&7Selected mode: &f%mode%"
     duration: "&7Combat duration: &f%seconds% seconds"
