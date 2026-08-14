@@ -1,0 +1,174 @@
+# ============================================================
+# CombatKeepInventory
+# ============================================================
+
+combat:
+
+  # Combat tag duration.
+  duration-seconds: 10
+
+  # Only Player vs Player starts combat.
+  player-vs-player-only: true
+
+
+# ============================================================
+# DEATH BEHAVIOR
+# ============================================================
+
+death:
+
+  # Direct player kill = DROP inventory.
+  player-kill-drops: true
+
+  # Player is still combat-tagged but dies from
+  # mob/environment.
+  #
+  # true  = DROP
+  # false = KEEP
+  combat-death-drops: false
+
+  # Non-combat PVE/environment death.
+  non-combat-death-keeps-inventory: true
+
+  # Keep XP when inventory is kept.
+  keep-experience: true
+
+
+# ============================================================
+# WORLD SYSTEM
+# ============================================================
+
+worlds:
+
+  # Enable world blacklist.
+  enabled: true
+
+  # CombatKeepInventory does NOT operate in these worlds.
+  disabled-worlds:
+    - lobby
+
+
+# ============================================================
+# PVP
+# ============================================================
+
+pvp:
+
+  # Global PvP state.
+  enabled: true
+
+  # If false:
+  # PvP damage is blocked.
+  #
+  # If true:
+  # PvP damage is allowed but CombatKeepInventory
+  # does not create a combat tag.
+  block-pvp-when-disabled: true
+
+  command:
+
+    # true:
+    # Player needs combatkeepinventory.pvp
+    #
+    # false:
+    # Anyone can use /cki pvp on/off
+    require-permission: true
+
+    permission: combatkeepinventory.pvp
+
+
+  # ==========================================================
+  # COMBAT LOG
+  # ==========================================================
+
+  combat-log:
+
+    # Punish players who quit while combat-tagged.
+    enabled: true
+
+    # Check CombatKeepInventory's combat state.
+    check-own-combat: true
+
+    # Check PvPManager combat state.
+    check-pvpmanager: true
+
+    # Minimum remaining combat time required.
+    #
+    # 0 = any active combat tag.
+    minimum-remaining-seconds: 0
+
+    # Commands executed by console.
+    #
+    # Placeholders:
+    # %player%
+    # %uuid%
+    commands:
+      - "kill %player%"
+
+    # Broadcast message.
+    broadcast: true
+
+    broadcast-message: "&c%player% đã combat-log!"
+
+    # Console logging.
+    log: true
+
+
+# ============================================================
+# WORLDGUARD
+# ============================================================
+
+worldguard:
+
+  enabled: true
+
+  # If WorldGuard is missing or an API call fails:
+  # true = allow plugin to continue
+  # false = deny CombatKeepInventory integration
+  fail-open: true
+
+  # Only used when restrict-to-enabled-regions = true.
+  enabled-regions: []
+
+  restrict-to-enabled-regions: false
+
+  excluded-regions:
+    - __global__
+
+  ignore-death-outside-regions: false
+
+  require-both-players-in-region: true
+
+
+# ============================================================
+# PVPMANAGER
+# ============================================================
+
+pvpmanager:
+
+  enabled: true
+
+  use-combat-state: true
+
+  fallback-to-own-combat: true
+
+  inherit-combat-state: true
+
+  trust-last-pvp-death: true
+
+
+# ============================================================
+# DEBUG
+# ============================================================
+
+debug:
+
+  enabled: false
+
+  combat: false
+
+  worldguard: false
+
+  pvpmanager: false
+
+  death: false
