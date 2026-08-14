@@ -68,7 +68,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         registerCommand();
 
         getLogger().info(
-                "CombatKeepInventory v1.0.0 enabled."
+                "CombatKeepInventory v1.1.0 enabled."
         );
 
         getLogger().info(
@@ -443,7 +443,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         getLogger().info(
-                "CombatKeepInventory v1.0.0 disabled."
+                "CombatKeepInventory v1.1.0 disabled."
         );
     }
 }
