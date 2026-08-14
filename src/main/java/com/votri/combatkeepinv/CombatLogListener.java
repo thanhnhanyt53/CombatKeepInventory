@@ -183,7 +183,7 @@ public final class CombatLogListener implements Listener {
                     );
 
             Bukkit.broadcastMessage(
-                    plugin.getColored(message)
+                    plugin.color(message)
             );
         }
 
