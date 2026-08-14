@@ -10,10 +10,19 @@ softdepend:
   - WorldGuard
   - PvPManager
 
+commands:
+  cki:
+    description: CombatKeepInventory main command
+    usage: /cki <reload|info>
+    aliases:
+      - combatkeepinventory
+      - combatkeepinv
+
 permissions:
   combatkeepinventory.admin:
     description: Allows administration of CombatKeepInventory
     default: op
+
   combatkeepinventory.bypass:
     description: Bypass CombatKeepInventory death handling
     default: op
