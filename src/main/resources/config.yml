@@ -45,7 +45,7 @@ worlds:
 
   # CombatKeepInventory does NOT operate in these worlds.
   disabled-worlds:
-    - lobby
+    - exampleworld
 
 
 # ============================================================
@@ -108,10 +108,10 @@ pvp:
     # Broadcast message.
     broadcast: true
 
-    broadcast-message: "&c%player% đã combat-log!"
+    broadcast-message: "&c%player% combat-logged!"
 
     # Console logging.
-    log: true
+    log: false
 
 
 # ============================================================
@@ -128,7 +128,16 @@ worldguard:
   fail-open: true
 
   # Only used when restrict-to-enabled-regions = true.
-  enabled-regions: []
+  # Only apply to the region if its name is in the list.
+  #
+  # Example:
+  # enabled regions:
+  # - arena
+  # - pvp
+  # - warzone
+  #
+  # Set to [] for no region name restrictions.
+  enabled regions: []
 
   restrict-to-enabled-regions: false
 
