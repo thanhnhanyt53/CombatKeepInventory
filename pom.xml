@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- =========================================================
+         PROJECT
+         ========================================================= -->
+
+    <groupId>com.votri</groupId>
+    <artifactId>CombatKeepInventory</artifactId>
+    <version>1.1.0</version>
+
+    <name>CombatKeepInventory</name>
+    <description>
+        Configurable combat-based inventory management plugin
+        for Minecraft 1.21+
+    </description>
+
+    <packaging>jar</packaging>
+
+    <properties>
+
+        <!-- Java used by Minecraft 1.21.x -->
+        <java.version>21</java.version>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+
+    </properties>
+
+
+    <!-- =========================================================
+         REPOSITORIES
+         ========================================================= -->
+
+    <repositories>
+
+        <!-- Paper -->
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+
+        <!-- Spigot -->
+        <repository>
+            <id>spigotmc-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
+
+        <!-- PlaceholderAPI / other Bukkit-compatible dependencies -->
+        <repository>
+            <id>sonatype</id>
+            <url>https://oss.sonatype.org/content/groups/public/</url>
+        </repository>
+
+    </repositories>
+
+
+    <!-- =========================================================
+         DEPENDENCIES
+         ========================================================= -->
+
+    <dependencies>
+
+        <!-- =====================================================
+             PAPER API
+             ===================================================== -->
+
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+
+        <!-- =====================================================
+             WORLDGUARD
+             OPTIONAL / PROVIDED
+             ===================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <version>7.0.14</version>
+            <scope>provided</scope>
+        </dependency>
+
+
+        <!-- =====================================================
+             PVPMANAGER
+             OPTIONAL / PROVIDED
+             ===================================================== -->
+
+        <!--
+        PvPManager is intentionally NOT compiled as a hard
+        dependency because CombatKeepInventory uses reflection.
+
+        Therefore this plugin can run without PvPManager installed.
+        -->
+
+
+    </dependencies>
+
+
+    <!-- =========================================================
+         BUILD
+         ========================================================= -->
+
+    <build>
+
+        <finalName>CombatKeepInventory-${project.version}</finalName>
+
+        <plugins>
+
+            <!-- =================================================
+                 JAVA COMPILER
+                 ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
+
+                <configuration>
+                    <release>${java.version}</release>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+
+            <!-- =================================================
+                 RESOURCE PROCESSING
+                 ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+
+            <!-- =================================================
+                 JAR
+                 ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+
+                        <manifestEntries>
+                            <Implementation-Title>
+                                CombatKeepInventory
+                            </Implementation-Title>
+
+                            <Implementation-Version>
+                                ${project.version}
+                            </Implementation-Version>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+
+            <!-- =================================================
+                 CLEAN
+                 ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.4.1</version>
+            </plugin>
+
+
+            <!-- =================================================
+                 SOURCE JAR
+                 ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <phase>verify</phase>
+
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
