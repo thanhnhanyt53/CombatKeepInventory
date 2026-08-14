@@ -1,0 +1,218 @@
+name: Bug Report
+description: Báo cáo lỗi của CombatKeepInventory
+title: "[Bug]: "
+labels:
+  - bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 CombatKeepInventory Bug Report
+
+        Cảm ơn bạn đã báo cáo lỗi!
+
+        CombatKeepInventory là plugin quản lý inventory khi người chơi chết,
+        PvP combat tag và combat logging.
+
+        Vui lòng điền đầy đủ thông tin bên dưới để chúng tôi có thể tái hiện
+        và sửa lỗi nhanh nhất.
+
+        **Không đăng thông tin nhạy cảm hoặc IP/private information của server.**
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: CombatKeepInventory Version
+      description: Phiên bản CombatKeepInventory đang sử dụng.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: server-version
+    attributes:
+      label: Minecraft / Paper Version
+      description: Phiên bản Minecraft và server software.
+      placeholder: "Paper 26.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java Version
+      description: Phiên bản Java mà server đang sử dụng.
+      placeholder: "Java 25"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Loại lỗi
+      description: Lỗi xảy ra ở hệ thống nào?
+      options:
+        - Inventory / Keep Inventory
+        - PvP / Combat Tag
+        - Combat Logging
+        - PvP Toggle
+        - WorldGuard Integration
+        - PvPManager Integration
+        - World Configuration
+        - Commands / Permissions
+        - Configuration
+        - Plugin Startup / Loading
+        - Performance
+        - Khác
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Mô tả lỗi
+      description: |
+        Mô tả chính xác lỗi đang xảy ra.
+
+        Hãy giải thích:
+        - Điều gì đã xảy ra?
+        - Điều gì đáng lẽ phải xảy ra?
+        - Lỗi xảy ra với ai?
+        - Lỗi xảy ra trong trường hợp nào?
+
+      placeholder: |
+        Ví dụ:
+
+        keepInventory được đặt thành true.
+        Người chơi A giết người chơi B trong PvP.
+        Người chơi B chết nhưng inventory không rơi ra.
+
+        Theo cấu hình của tôi, inventory của B phải được rơi ra.
+
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Các bước tái hiện lỗi
+      description: |
+        Hãy liệt kê từng bước để chúng tôi có thể tái hiện lỗi.
+
+      placeholder: |
+        1. Bật keepInventory=true
+        2. Bật CombatKeepInventory
+        3. Cho Player A đánh Player B
+        4. Player B chết
+        5. Kiểm tra inventory
+        6. Inventory không rơi
+
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kết quả mong đợi
+      description: Điều bạn mong muốn plugin thực hiện.
+      placeholder: |
+        Player B phải mất toàn bộ inventory và item phải rơi
+        xuống đất dù keepInventory=true.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Kết quả thực tế
+      description: Điều thực tế đã xảy ra.
+      placeholder: |
+        Player B chết nhưng không có item nào rơi ra.
+        Sau khi hồi sinh, inventory vẫn bị mất.
+
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: |
+        Dán phần config.yml liên quan đến lỗi.
+
+        Vui lòng không đăng thông tin nhạy cảm.
+      render: yaml
+      placeholder: |
+        combat:
+          duration-seconds: 10
+
+        death:
+          ...
+
+  - type: textarea
+    id: plugins
+    attributes:
+      label: Plugin liên quan
+      description: |
+        Liệt kê các plugin có thể liên quan đến lỗi.
+
+        Đặc biệt hãy ghi rõ nếu đang sử dụng:
+        - WorldGuard
+        - PvPManager
+        - Geyser
+        - Floodgate
+        - EssentialsX
+        - các plugin quản lý inventory/death khác
+
+      placeholder: |
+        WorldGuard 7.x
+        PvPManager 4.1.71
+        Geyser
+        Floodgate
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server Log
+      description: |
+        Dán log liên quan đến lỗi.
+
+        Nếu không có lỗi trong console, hãy ghi:
+        "No errors in console."
+
+      render: text
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands / Permissions
+      description: |
+        Nếu lỗi liên quan đến command hoặc permission,
+        hãy ghi command và permission đã sử dụng.
+      placeholder: |
+        Command:
+        /cki pvp off
+
+        Permission:
+        combatkeepinventory.pvp
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Thông tin bổ sung
+      description: |
+        Thêm ảnh chụp màn hình, video, log bổ sung hoặc thông tin khác
+        có thể giúp xác định lỗi.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Kiểm tra trước khi gửi
+      options:
+        - label: Tôi đã sử dụng phiên bản CombatKeepInventory mới nhất.
+          required: true
+        - label: Tôi đã kiểm tra rằng lỗi chưa được báo cáo trong Issues.
+          required: true
+        - label: Tôi đã cung cấp đủ thông tin để tái hiện lỗi.
+          required: true
