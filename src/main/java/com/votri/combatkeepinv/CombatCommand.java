@@ -13,6 +13,9 @@ import java.util.Locale;
 public final class CombatCommand
         implements CommandExecutor, TabCompleter {
 
+    private static final String ADMIN_PERMISSION =
+            "combatkeepinventory.admin";
+
     private final CombatKeepInventory plugin;
 
     public CombatCommand(
@@ -28,6 +31,7 @@ public final class CombatCommand
             String label,
             String[] args
     ) {
+
         if (args.length == 0) {
             sendUsage(sender);
             return true;
@@ -36,6 +40,7 @@ public final class CombatCommand
         switch (
                 args[0].toLowerCase(Locale.ROOT)
         ) {
+
             case "reload":
                 return reload(sender);
 
@@ -51,18 +56,21 @@ public final class CombatCommand
         }
     }
 
+    /*
+     * ============================================================
+     * RELOAD
+     * ============================================================
+     */
+
     private boolean reload(
             CommandSender sender
     ) {
+
         if (!sender.hasPermission(
-                "combatkeepinventory.admin"
+                ADMIN_PERMISSION
         )) {
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "general.no-permission",
-                            "&cYou don't have permission."
-                    )
-            );
+
+            sendNoPermission(sender);
             return true;
         }
 
@@ -78,18 +86,21 @@ public final class CombatCommand
         return true;
     }
 
+    /*
+     * ============================================================
+     * INFO
+     * ============================================================
+     */
+
     private boolean info(
             CommandSender sender
     ) {
+
         if (!sender.hasPermission(
-                "combatkeepinventory.admin"
+                ADMIN_PERMISSION
         )) {
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "general.no-permission",
-                            "&cYou don't have permission."
-                    )
-            );
+
+            sendNoPermission(sender);
             return true;
         }
 
@@ -103,9 +114,14 @@ public final class CombatCommand
         sender.sendMessage(
                 plugin.getMessage(
                         "command.info.title",
-                        "&cCombatKeepInventory &f1.1.0"
+                        "&cCombatKeepInventory &f"
+                                + CombatKeepInventory.PLUGIN_VERSION
                 )
         );
+
+        /*
+         * Platform
+         */
 
         sender.sendMessage(
                 plugin.getMessage(
@@ -117,6 +133,10 @@ public final class CombatCommand
                 )
         );
 
+        /*
+         * Selected platform
+         */
+
         sender.sendMessage(
                 plugin.getMessage(
                         "command.info.selected-platform",
@@ -126,6 +146,10 @@ public final class CombatCommand
                         plugin.getSelectedPlatform()
                 )
         );
+
+        /*
+         * Combat duration
+         */
 
         sender.sendMessage(
                 plugin.getMessage(
@@ -138,6 +162,10 @@ public final class CombatCommand
                         )
                 )
         );
+
+        /*
+         * PvP
+         */
 
         sender.sendMessage(
                 plugin.getMessage(
@@ -157,6 +185,10 @@ public final class CombatCommand
                 )
         );
 
+        /*
+         * WorldGuard
+         */
+
         sender.sendMessage(
                 plugin.getMessage(
                         "command.info.worldguard",
@@ -169,17 +201,15 @@ public final class CombatCommand
                 )
         );
 
-        sender.sendMessage(
-                plugin.getMessage(
-                        "command.info.pvpmanager",
-                        "&7PvPManager: &f%pvpmanager%"
-                ).replace(
-                        "%pvpmanager%",
-                        plugin.getPvpManagerHook().isAvailable()
-                                ? "ENABLED"
-                                : "NOT INSTALLED"
-                )
-        );
+        /*
+         * PvPManager section REMOVED.
+         *
+         * Do NOT call:
+         *
+         * plugin.getPvpManagerHook()
+         *
+         * PvPManager is no longer part of CombatKeepInventory.
+         */
 
         sender.sendMessage(
                 plugin.getMessage(
@@ -191,34 +221,58 @@ public final class CombatCommand
         return true;
     }
 
+    /*
+     * ============================================================
+     * PVP
+     * ============================================================
+     */
+
     private boolean pvp(
             CommandSender sender,
             String[] args
     ) {
+
         if (!plugin.canTogglePvP(sender)) {
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "general.no-permission",
-                            "&cYou don't have permission."
-                    )
-            );
+
+            sendNoPermission(sender);
             return true;
         }
 
         if (args.length < 2) {
+
             sender.sendMessage(
                     plugin.getMessage(
                             "command.pvp.usage",
                             "&eUsage: /cki pvp <on|off>"
                     )
             );
+
             return true;
         }
 
         String value =
-                args[1].toLowerCase(Locale.ROOT);
+                args[1].toLowerCase(
+                        Locale.ROOT
+                );
+
+        /*
+         * Enable PvP
+         */
 
         if ("on".equals(value)) {
+
+            if (plugin.isPvPEnabled()) {
+
+                sender.sendMessage(
+                        plugin.getMessage(
+                                "command.pvp.already-enabled",
+                                "&ePvP is already enabled."
+                        )
+                );
+
+                return true;
+            }
+
             plugin.setPvPEnabled(true);
 
             sender.sendMessage(
@@ -231,7 +285,24 @@ public final class CombatCommand
             return true;
         }
 
+        /*
+         * Disable PvP
+         */
+
         if ("off".equals(value)) {
+
+            if (!plugin.isPvPEnabled()) {
+
+                sender.sendMessage(
+                        plugin.getMessage(
+                                "command.pvp.already-disabled",
+                                "&ePvP is already disabled."
+                        )
+                );
+
+                return true;
+            }
+
             plugin.setPvPEnabled(false);
 
             sender.sendMessage(
@@ -244,6 +315,10 @@ public final class CombatCommand
             return true;
         }
 
+        /*
+         * Invalid argument
+         */
+
         sender.sendMessage(
                 plugin.getMessage(
                         "command.pvp.usage",
@@ -254,15 +329,23 @@ public final class CombatCommand
         return true;
     }
 
+    /*
+     * ============================================================
+     * USAGE
+     * ============================================================
+     */
+
     private void sendUsage(
             CommandSender sender
     ) {
+
         List<String> lines =
                 plugin.getMessageList(
                         "command.usage"
                 );
 
         if (lines.isEmpty()) {
+
             sender.sendMessage(
                     "&e/cki reload"
             );
@@ -283,6 +366,30 @@ public final class CombatCommand
         }
     }
 
+    /*
+     * ============================================================
+     * NO PERMISSION
+     * ============================================================
+     */
+
+    private void sendNoPermission(
+            CommandSender sender
+    ) {
+
+        sender.sendMessage(
+                plugin.getMessage(
+                        "general.no-permission",
+                        "&cYou don't have permission."
+                )
+        );
+    }
+
+    /*
+     * ============================================================
+     * TAB COMPLETE
+     * ============================================================
+     */
+
     @Override
     public List<String> onTabComplete(
             CommandSender sender,
@@ -290,13 +397,20 @@ public final class CombatCommand
             String alias,
             String[] args
     ) {
+
+        /*
+         * First argument
+         */
+
         if (args.length == 1) {
+
             List<String> result =
                     new ArrayList<>();
 
             if (sender.hasPermission(
-                    "combatkeepinventory.admin"
+                    ADMIN_PERMISSION
             )) {
+
                 result.add("reload");
                 result.add("info");
             }
@@ -311,8 +425,18 @@ public final class CombatCommand
             );
         }
 
+        /*
+         * PVP arguments
+         */
+
         if (args.length == 2 &&
-                "pvp".equalsIgnoreCase(args[0])) {
+                "pvp".equalsIgnoreCase(
+                        args[0]
+                )) {
+
+            if (!plugin.canTogglePvP(sender)) {
+                return Collections.emptyList();
+            }
 
             return filter(
                     List.of(
@@ -326,21 +450,35 @@ public final class CombatCommand
         return Collections.emptyList();
     }
 
+    /*
+     * ============================================================
+     * TAB FILTER
+     * ============================================================
+     */
+
     private List<String> filter(
             List<String> values,
             String input
     ) {
+
         List<String> result =
                 new ArrayList<>();
 
+        String lowerInput =
+                input == null
+                        ? ""
+                        : input.toLowerCase(
+                                Locale.ROOT
+                        );
+
         for (String value : values) {
+
             if (value.toLowerCase(
                     Locale.ROOT
             ).startsWith(
-                    input.toLowerCase(
-                            Locale.ROOT
-                    )
+                    lowerInput
             )) {
+
                 result.add(value);
             }
         }
