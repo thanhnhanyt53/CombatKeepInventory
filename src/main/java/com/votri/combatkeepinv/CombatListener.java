@@ -8,6 +8,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
@@ -34,17 +36,23 @@ public final class CombatListener implements Listener {
         this.pvpManager = pvpManager;
     }
 
-    /**
-     * Handles Player -> Player damage.
+    /*
+     * ============================================================
+     * ENTITY DAMAGE
+     * ============================================================
      *
-     * PvP toggle has priority over bypass:
-     * - PvP OFF + block=true  -> cancel damage.
-     * - PvP OFF + block=false -> allow damage, no combat tag.
-     * - PvP ON                  -> normal processing.
+     * player-vs-player-only:
      *
-     * Bypass only prevents CombatKeepInventory combat tagging;
-     * it does NOT bypass the global PvP switch.
+     * true:
+     *   Only Player -> Player damage creates a combat tag.
+     *
+     * false:
+     *   Player can also become combat-tagged from
+     *   non-player entity damage.
+     *
+     * PvP toggle only controls Player -> Player damage.
      */
+
     @EventHandler(
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
@@ -56,136 +64,188 @@ public final class CombatListener implements Listener {
             return;
         }
 
-        Player attacker = getAttackingPlayer(
-                event.getDamager()
-        );
+        Entity damager = event.getDamager();
 
-        if (attacker == null) {
-            return;
-        }
-
-        if (attacker.equals(victim)) {
-            return;
-        }
+        Player attacker = getAttackingPlayer(damager);
 
         /*
-         * Disabled worlds:
-         * CombatKeepInventory does not interfere here.
+         * ========================================================
+         * WORLD CHECK
+         * ========================================================
          */
+
         if (plugin.isWorldDisabled(victim.getWorld())) {
             return;
         }
 
-        if (plugin.isWorldDisabled(attacker.getWorld())) {
-            return;
-        }
+        /*
+         * ========================================================
+         * CONFIG
+         * ========================================================
+         */
+
+        boolean playerVsPlayerOnly =
+                plugin.getConfig().getBoolean(
+                        "combat.player-vs-player-only",
+                        true
+                );
 
         /*
-         * ------------------------------------------------------
-         * GLOBAL PVP TOGGLE
-         * ------------------------------------------------------
+         * ========================================================
+         * PLAYER -> PLAYER
+         * ========================================================
          */
-        if (!plugin.isPvPEnabled()) {
 
-            /*
-             * PvP OFF + blocking enabled:
-             * prevent the actual PvP damage.
-             */
-            if (plugin.getConfig().getBoolean(
-                    "pvp.block-pvp-when-disabled",
-                    true
-            )) {
-                event.setCancelled(true);
+        if (attacker != null) {
+
+            if (attacker.equals(victim)) {
+                return;
+            }
+
+            if (plugin.isWorldDisabled(attacker.getWorld())) {
+                return;
             }
 
             /*
-             * In both modes we do NOT create a CKI combat tag.
+             * ----------------------------------------------------
+             * GLOBAL PVP TOGGLE
+             * ----------------------------------------------------
+             *
+             * PvP OFF:
+             *
+             * block=true:
+             *     cancel PvP damage.
+             *
+             * block=false:
+             *     allow PvP damage, but do not create CKI tag.
              */
-            return;
-        }
+            if (!plugin.isPvPEnabled()) {
 
-        /*
-         * ------------------------------------------------------
-         * WORLDGUARD
-         * ------------------------------------------------------
-         */
-        if (!worldGuard.canPvP(
-                attacker,
-                victim
-        )) {
+                if (plugin.getConfig().getBoolean(
+                        "pvp.block-pvp-when-disabled",
+                        true
+                )) {
+                    event.setCancelled(true);
+                }
 
-            /*
-             * WorldGuard integration can optionally cancel
-             * PvP damage itself.
-             */
-            if (plugin.getConfig().getBoolean(
-                    "worldguard.block-pvp-when-denied",
-                    false
-            )) {
-                event.setCancelled(true);
+                return;
             }
 
+            /*
+             * ----------------------------------------------------
+             * WORLDGUARD
+             * ----------------------------------------------------
+             */
+
+            if (!worldGuard.canPvP(attacker, victim)) {
+
+                if (plugin.getConfig().getBoolean(
+                        "worldguard.block-pvp-when-denied",
+                        false
+                )) {
+                    event.setCancelled(true);
+                }
+
+                return;
+            }
+
+            /*
+             * ----------------------------------------------------
+             * BYPASS
+             * ----------------------------------------------------
+             *
+             * Bypass players do not receive or create
+             * CombatKeepInventory combat tags.
+             *
+             * PvP itself is still allowed.
+             */
+
+            if (attacker.hasPermission(BYPASS_PERMISSION)) {
+                return;
+            }
+
+            if (victim.hasPermission(BYPASS_PERMISSION)) {
+                return;
+            }
+
+            /*
+             * ----------------------------------------------------
+             * PLAYER VS PLAYER COMBAT
+             * ----------------------------------------------------
+             *
+             * Since this is definitely Player -> Player,
+             * it is always allowed to create a tag.
+             */
+
+            combatManager.tag(
+                    attacker.getUniqueId(),
+                    victim.getUniqueId()
+            );
+
+            debugCombat(
+                    attacker,
+                    victim,
+                    "PLAYER_VS_PLAYER"
+            );
+
             return;
         }
 
         /*
-         * ------------------------------------------------------
-         * BYPASS
-         * ------------------------------------------------------
+         * ========================================================
+         * NON-PLAYER ENTITY -> PLAYER
+         * ========================================================
          *
-         * PvP itself is still allowed.
-         * The bypass player simply does not participate
-         * in CombatKeepInventory combat tagging.
+         * Only enabled when:
+         *
+         * combat.player-vs-player-only = false
          */
-        if (attacker.hasPermission(
-                BYPASS_PERMISSION
-        )) {
-            return;
-        }
 
-        if (victim.hasPermission(
-                BYPASS_PERMISSION
-        )) {
+        if (playerVsPlayerOnly) {
             return;
         }
 
         /*
-         * ------------------------------------------------------
-         * PLAYER VS PLAYER COMBAT TAG
-         * ------------------------------------------------------
-         *
-         * This event is already Player -> Player, therefore
-         * player-vs-player-only remains true/compatible.
-         *
-         * The config option is retained for compatibility
-         * with older configurations.
+         * A bypass player is not affected by CKI.
          */
+
+        if (victim.hasPermission(BYPASS_PERMISSION)) {
+            return;
+        }
+
+        /*
+         * Non-player damage does not have another Player UUID
+         * to tag as attacker.
+         *
+         * Therefore only the victim is placed into combat.
+         */
+
         combatManager.tag(
-                attacker.getUniqueId(),
                 victim.getUniqueId()
         );
 
-        /*
-         * Debug logging.
-         */
         if (plugin.getConfig().getBoolean(
                 "debug.combat",
                 false
         )) {
             plugin.getLogger().info(
                     "Combat tagged: "
-                            + attacker.getName()
-                            + " <-> "
                             + victim.getName()
+                            + " <- "
+                            + damager.getType()
             );
         }
     }
 
-    /**
-     * Handles all player deaths.
+    /*
+     * ============================================================
+     * PLAYER DEATH
+     * ============================================================
      */
+
     @EventHandler(
-            priority = EventPriority.HIGHEST
+            priority = EventPriority.HIGHEST,
+            ignoreCancelled = true
     )
     public void onPlayerDeath(
             PlayerDeathEvent event
@@ -194,32 +254,26 @@ public final class CombatListener implements Listener {
 
         /*
          * Disabled world:
-         * CombatKeepInventory does not interfere.
+         * CKI does nothing.
          */
-        if (plugin.isWorldDisabled(
-                victim.getWorld()
-        )) {
+
+        if (plugin.isWorldDisabled(victim.getWorld())) {
             return;
         }
 
         UUID uuid = victim.getUniqueId();
 
         /*
-         * ------------------------------------------------------
+         * ========================================================
          * BYPASS
-         * ------------------------------------------------------
+         * ========================================================
          *
-         * A bypass player must ALWAYS keep inventory,
-         * regardless of:
+         * Bypass players keep their inventory.
          *
-         * - keepInventory gamerule
-         * - PvP
-         * - combat tag
-         * - death cause
+         * Do not process PvP/combat death logic.
          */
-        if (victim.hasPermission(
-                BYPASS_PERMISSION
-        )) {
+
+        if (victim.hasPermission(BYPASS_PERMISSION)) {
 
             handleKeepInventory(event);
 
@@ -229,42 +283,14 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ------------------------------------------------------
+         * ========================================================
          * DIRECT PLAYER KILL
-         * ------------------------------------------------------
-         *
-         * This is intentionally independent from the current
-         * PvP toggle state.
-         *
-         * If a valid PlayerDeathEvent contains a player killer,
-         * the death follows player-kill-drops.
+         * ========================================================
          */
+
         boolean directPlayerKill =
                 victim.getKiller() != null;
 
-        /*
-         * ------------------------------------------------------
-         * COMBAT STATE
-         * ------------------------------------------------------
-         */
-        boolean ownCombat =
-                combatManager.isInCombat(uuid);
-
-        boolean externalCombat =
-                plugin.getConfig().getBoolean(
-                        "pvpmanager.use-combat-state",
-                        true
-                )
-                        && pvpManager.isInCombat(victim);
-
-        boolean inCombat =
-                ownCombat || externalCombat;
-
-        /*
-         * ------------------------------------------------------
-         * DIRECT PLAYER KILL
-         * ------------------------------------------------------
-         */
         if (directPlayerKill) {
 
             boolean shouldDrop =
@@ -285,10 +311,33 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ------------------------------------------------------
-         * NON-PLAYER DEATH WHILE COMBAT TAGGED
-         * ------------------------------------------------------
+         * ========================================================
+         * COMBAT STATE
+         * ========================================================
          */
+
+        boolean ownCombat =
+                combatManager.isInCombat(uuid);
+
+        boolean usePvPManager =
+                plugin.getConfig().getBoolean(
+                        "pvpmanager.use-combat-state",
+                        true
+                );
+
+        boolean pvpManagerCombat =
+                usePvPManager
+                        && pvpManager.isInCombat(victim);
+
+        boolean inCombat =
+                ownCombat || pvpManagerCombat;
+
+        /*
+         * ========================================================
+         * COMBAT DEATH
+         * ========================================================
+         */
+
         if (inCombat) {
 
             boolean shouldDrop =
@@ -309,10 +358,11 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ------------------------------------------------------
-         * NON-COMBAT PVE / ENVIRONMENT DEATH
-         * ------------------------------------------------------
+         * ========================================================
+         * NORMAL NON-COMBAT DEATH
+         * ========================================================
          */
+
         boolean shouldKeep =
                 plugin.getConfig().getBoolean(
                         "death.non-combat-death-keeps-inventory",
@@ -328,28 +378,79 @@ public final class CombatListener implements Listener {
         combatManager.remove(uuid);
     }
 
-    /**
-     * Forces inventory to DROP.
+    /*
+     * ============================================================
+     * FORCE INVENTORY DROP
+     * ============================================================
      *
      * IMPORTANT:
-     * Do NOT clear event.getDrops().
      *
-     * This is required to fix:
+     * This method explicitly rebuilds the death drops.
      *
-     * keepInventory=true
+     * This fixes:
+     *
+     * gamerule keepInventory=true
      * +
-     * Player Kill
-     * =
-     * item must still drop.
+     * player-kill-drops=true
+     *
+     * where simply calling:
+     *
+     * event.setKeepInventory(false)
+     *
+     * can leave the death event with no inventory drops.
      */
+
     private void handleDropInventory(
             PlayerDeathEvent event
     ) {
+        Player player = event.getEntity();
+
+        /*
+         * Remove any existing drops first.
+         *
+         * This prevents duplicates if Paper already populated
+         * the event drops.
+         */
+
+        event.getDrops().clear();
+
+        /*
+         * Normal storage inventory.
+         */
+
+        addDrops(
+                event,
+                player.getInventory().getStorageContents()
+        );
+
+        /*
+         * Armor.
+         */
+
+        addDrops(
+                event,
+                player.getInventory().getArmorContents()
+        );
+
+        /*
+         * Offhand / extra inventory slots.
+         */
+
+        addDrops(
+                event,
+                player.getInventory().getExtraContents()
+        );
+
+        /*
+         * Inventory must NOT be retained.
+         */
+
         event.setKeepInventory(false);
 
         /*
-         * Experience behavior.
+         * Experience.
          */
+
         boolean keepExperience =
                 plugin.getConfig().getBoolean(
                         "death.keep-experience",
@@ -362,26 +463,63 @@ public final class CombatListener implements Listener {
             event.setKeepLevel(false);
             event.setDroppedExp(0);
         }
-
-        /*
-         * NEVER clear event.getDrops() here.
-         */
     }
 
-    /**
-     * Forces inventory to be kept.
+    /*
+     * Adds cloned ItemStacks to the death drops.
+     *
+     * Cloning is important because the ItemStack objects belong
+     * to the player's inventory.
      */
+
+    private void addDrops(
+            PlayerDeathEvent event,
+            ItemStack[] items
+    ) {
+        if (items == null) {
+            return;
+        }
+
+        for (ItemStack item : items) {
+
+            if (item == null) {
+                continue;
+            }
+
+            if (item.getType().isAir()) {
+                continue;
+            }
+
+            event.getDrops().add(
+                    item.clone()
+            );
+        }
+    }
+
+    /*
+     * ============================================================
+     * FORCE INVENTORY KEEP
+     * ============================================================
+     */
+
     private void handleKeepInventory(
             PlayerDeathEvent event
     ) {
+        /*
+         * Inventory remains with the player.
+         */
+
         event.setKeepInventory(true);
 
         /*
-         * Prevent duplicate inventory:
-         * the inventory is kept by the server, so normal drops
-         * must be removed.
+         * Prevent duplicate ground drops.
          */
+
         event.getDrops().clear();
+
+        /*
+         * Experience.
+         */
 
         boolean keepExperience =
                 plugin.getConfig().getBoolean(
@@ -398,19 +536,26 @@ public final class CombatListener implements Listener {
         }
     }
 
-    /**
-     * Resolves the Player responsible for the damage.
-     *
-     * Supports:
-     * - Direct Player attacks
-     * - Player-fired projectiles
+    /*
+     * ============================================================
+     * ATTACKER RESOLUTION
+     * ============================================================
      */
+
     private Player getAttackingPlayer(
             Entity damager
     ) {
+        /*
+         * Direct melee.
+         */
+
         if (damager instanceof Player player) {
             return player;
         }
+
+        /*
+         * Projectile.
+         */
 
         if (damager instanceof Projectile projectile) {
 
@@ -423,5 +568,32 @@ public final class CombatListener implements Listener {
         }
 
         return null;
+    }
+
+    /*
+     * ============================================================
+     * DEBUG
+     * ============================================================
+     */
+
+    private void debugCombat(
+            Player attacker,
+            Player victim,
+            String reason
+    ) {
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
+            return;
+        }
+
+        plugin.getLogger().info(
+                "Combat tagged: "
+                        + attacker.getName()
+                        + " <-> "
+                        + victim.getName()
+                        + " [" + reason + "]"
+        );
     }
 }
