@@ -7,39 +7,92 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.event.Event;
+import org.bukkit.event.EventExecutor;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class CombatKeepInventory extends JavaPlugin {
 
+    /*
+     * ============================================================
+     * VERSION
+     * ============================================================
+     */
+
+    public static final String PLUGIN_VERSION =
+            "1.1.0-SNAPSHOT-build2";
+
+    private static final int CONFIG_VERSION = 2;
+
+    /*
+     * ============================================================
+     * COMPONENTS
+     * ============================================================
+     */
+
     private CombatManager combatManager;
     private WorldGuardHook worldGuardHook;
-    private PvPManagerHook pvpManagerHook;
-    private InventoryJournalManager inventoryJournalManager;
+
+    /*
+     * ============================================================
+     * MESSAGES
+     * ============================================================
+     */
 
     private File messageFile;
     private FileConfiguration messages;
+
+    /*
+     * ============================================================
+     * STATE
+     * ============================================================
+     */
 
     private boolean pvpEnabled;
 
     private String detectedPlatform;
     private String selectedPlatform;
 
+    /*
+     * ============================================================
+     * ENABLE
+     * ============================================================
+     */
+
     @Override
     public void onEnable() {
 
-        saveDefaultConfig();
-        saveDefaultMessages();
+        /*
+         * Migrate old configuration BEFORE saveDefaultConfig().
+         *
+         * If the installed config is old, it is renamed and a
+         * completely fresh config from the JAR is created.
+         */
+        migrateConfigIfRequired();
 
+        saveDefaultConfig();
+
+        saveDefaultMessages();
         loadMessages();
+
         loadPlatform();
 
         if (!checkPlatform()) {
 
             getLogger().severe(
-                    "Selected platform does not match the detected server platform."
+                    "Selected platform does not match the detected "
+                            + "server platform."
             );
 
             getServer()
@@ -51,90 +104,66 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         initializeComponents();
 
-        /*
-         * ============================================================
-         * COMBAT LISTENER
-         * ============================================================
-         */
-
-        getServer()
-                .getPluginManager()
-                .registerEvents(
-                        new CombatListener(
-                                this,
-                                combatManager,
-                                worldGuardHook,
-                                pvpManagerHook,
-                                inventoryJournalManager
-                        ),
-                        this
-                );
-
-        /*
-         * ============================================================
-         * COMBAT LOG LISTENER
-         * ============================================================
-         */
-
-        getServer()
-                .getPluginManager()
-                .registerEvents(
-                        new CombatLogListener(
-                                this,
-                                combatManager,
-                                pvpManagerHook,
-                                inventoryJournalManager
-                        ),
-                        this
-                );
-
+        registerCombatListeners();
         registerCommand();
 
         getLogger().info(
-                "CombatKeepInventory v1.1.0-SNAPSHOT-build1 enabled."
+                "CombatKeepInventory "
+                        + PLUGIN_VERSION
+                        + " enabled."
         );
 
         getLogger().info(
-                "Detected platform: " +
-                        detectedPlatform
+                "Detected platform: "
+                        + detectedPlatform
         );
 
         getLogger().info(
-                "Selected platform: " +
-                        selectedPlatform
+                "Selected platform: "
+                        + selectedPlatform
         );
 
         getLogger().info(
-                "Combat duration: " +
-                        getCombatDurationSeconds() +
-                        " seconds"
+                "Combat duration: "
+                        + getCombatDurationSeconds()
+                        + " seconds"
         );
 
         getLogger().info(
-                "PvP: " +
-                        (pvpEnabled
+                "PvP: "
+                        + (pvpEnabled
+                        ? "ENABLED"
+                        : "DISABLED")
+        );
+
+        getLogger().info(
+                "Listener priority: "
+                        + getListenerPriority()
+        );
+
+        getLogger().info(
+                "WorldGuard: "
+                        + (
+                        worldGuardHook.isAvailable()
                                 ? "ENABLED"
-                                : "DISABLED")
+                                : "NOT INSTALLED"
+                )
         );
 
         getLogger().info(
-                "WorldGuard: " +
-                        (worldGuardHook.isAvailable()
-                                ? "ENABLED"
-                                : "NOT INSTALLED")
+                "PvPManager integration: REMOVED"
         );
 
         getLogger().info(
-                "PvPManager: " +
-                        (pvpManagerHook.isAvailable()
-                                ? "ENABLED"
-                                : "NOT INSTALLED")
-        );
-
-        getLogger().info(
-                "Inventory journal: ENABLED"
+                "Combat logout punishment: REMOVED"
         );
     }
+
+    /*
+     * ============================================================
+     * INITIALIZE COMPONENTS
+     * ============================================================
+     */
 
     private void initializeComponents() {
 
@@ -149,31 +178,211 @@ public final class CombatKeepInventory extends JavaPlugin {
         worldGuardHook =
                 new WorldGuardHook(this);
 
-        /*
-         * PvPManagerHook uses reflection at runtime.
-         * PvPManager is NOT a mandatory Maven dependency.
-         */
-        pvpManagerHook =
-                new PvPManagerHook(
-                        this,
-                        combatManager
-                );
-
-        /*
-         * Journal manager MUST be created before
-         * CombatListener / CombatLogListener.
-         */
-        inventoryJournalManager =
-                new InventoryJournalManager(
-                        this
-                );
-
         pvpEnabled =
                 getConfig().getBoolean(
                         "pvp.enabled",
                         true
                 );
     }
+
+    /*
+     * ============================================================
+     * EVENT REGISTRATION
+     * ============================================================
+     *
+     * Bukkit's @EventHandler annotation cannot have a dynamic
+     * EventPriority. Therefore listeners are registered manually
+     * so listener-priority can actually be controlled by config.yml.
+     */
+
+    private void registerCombatListeners() {
+
+        CombatListener listener =
+                new CombatListener(
+                        this,
+                        combatManager,
+                        worldGuardHook
+                );
+
+        EventPriority priority =
+                getListenerPriority();
+
+        EventExecutor damageExecutor =
+                (registeredListener, event) -> {
+
+                    if (event instanceof EntityDamageByEntityEvent damage) {
+                        listener.onEntityDamageByEntity(damage);
+                    }
+                };
+
+        EventExecutor deathExecutor =
+                (registeredListener, event) -> {
+
+                    if (event instanceof PlayerDeathEvent death) {
+                        listener.onPlayerDeath(death);
+                    }
+                };
+
+        getServer()
+                .getPluginManager()
+                .registerEvent(
+                        EntityDamageByEntityEvent.class,
+                        listener,
+                        priority,
+                        damageExecutor,
+                        this
+                );
+
+        getServer()
+                .getPluginManager()
+                .registerEvent(
+                        PlayerDeathEvent.class,
+                        listener,
+                        priority,
+                        deathExecutor,
+                        this
+                );
+
+        getLogger().info(
+                "Combat listeners registered at "
+                        + priority
+                        + " priority."
+        );
+    }
+
+    /*
+     * ============================================================
+     * CONFIGURABLE EVENT PRIORITY
+     * ============================================================
+     */
+
+    public EventPriority getListenerPriority() {
+
+        String value =
+                getConfig().getString(
+                        "listener-priority",
+                        "HIGHEST"
+                );
+
+        if (value == null) {
+            return EventPriority.HIGHEST;
+        }
+
+        try {
+
+            return EventPriority.valueOf(
+                    value.trim()
+                            .toUpperCase(Locale.ROOT)
+            );
+
+        } catch (IllegalArgumentException exception) {
+
+            getLogger().warning(
+                    "Invalid listener-priority '"
+                            + value
+                            + "'. Using HIGHEST."
+            );
+
+            return EventPriority.HIGHEST;
+        }
+    }
+
+    /*
+     * ============================================================
+     * CONFIG MIGRATION
+     * ============================================================
+     */
+
+    private void migrateConfigIfRequired() {
+
+        File configFile =
+                new File(
+                        getDataFolder(),
+                        "config.yml"
+                );
+
+        /*
+         * No old config exists.
+         */
+        if (!configFile.exists()) {
+            return;
+        }
+
+        YamlConfiguration oldConfig =
+                YamlConfiguration.loadConfiguration(
+                        configFile
+                );
+
+        int oldVersion =
+                oldConfig.getInt(
+                        "config-version",
+                        0
+                );
+
+        /*
+         * Already current.
+         */
+        if (oldVersion >= CONFIG_VERSION) {
+            return;
+        }
+
+        long timestamp =
+                System.currentTimeMillis();
+
+        File backup =
+                new File(
+                        getDataFolder(),
+                        "config.yml.backup-"
+                                + timestamp
+                );
+
+        try {
+
+            Files.move(
+                    configFile.toPath(),
+                    backup.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+
+            getLogger().warning(
+                    "Old config.yml detected "
+                            + "(version "
+                            + oldVersion
+                            + ")."
+            );
+
+            getLogger().warning(
+                    "Old configuration has been backed up to: "
+                            + backup.getName()
+            );
+
+            getLogger().info(
+                    "A new configuration will now be created."
+            );
+
+        } catch (IOException exception) {
+
+            getLogger().severe(
+                    "Could not migrate old config.yml: "
+                            + exception.getMessage()
+            );
+
+            /*
+             * Do not overwrite the user's configuration if
+             * migration failed.
+             */
+            throw new IllegalStateException(
+                    "Configuration migration failed.",
+                    exception
+            );
+        }
+    }
+
+    /*
+     * ============================================================
+     * COMMAND
+     * ============================================================
+     */
 
     private void registerCommand() {
 
@@ -195,6 +404,12 @@ public final class CombatKeepInventory extends JavaPlugin {
         command.setExecutor(handler);
         command.setTabCompleter(handler);
     }
+
+    /*
+     * ============================================================
+     * MESSAGES
+     * ============================================================
+     */
 
     private void saveDefaultMessages() {
 
@@ -234,15 +449,25 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         messages =
-                YamlConfiguration
-                        .loadConfiguration(
-                                messageFile
-                        );
+                YamlConfiguration.loadConfiguration(
+                        messageFile
+                );
     }
+
+    /*
+     * ============================================================
+     * RELOAD
+     * ============================================================
+     */
 
     public void reloadPlugin() {
 
+        /*
+         * /cki reload intentionally does NOT rename the current
+         * config. Automatic migration only happens during startup.
+         */
         reloadConfig();
+
         loadMessages();
         loadPlatform();
 
@@ -255,12 +480,22 @@ public final class CombatKeepInventory extends JavaPlugin {
         getLogger().info(
                 "CombatKeepInventory configuration reloaded."
         );
+
+        getLogger().info(
+                "Listener priority: "
+                        + getListenerPriority()
+        );
     }
+
+    /*
+     * ============================================================
+     * MESSAGES API
+     * ============================================================
+     */
 
     public String getMessage(
             String path
     ) {
-
         return getMessage(
                 path,
                 path
@@ -285,17 +520,15 @@ public final class CombatKeepInventory extends JavaPlugin {
         return color(value);
     }
 
-    public java.util.List<String> getMessageList(
+    public List<String> getMessageList(
             String path
     ) {
 
-        java.util.List<String> values =
-                messages.getStringList(
-                        path
-                );
+        List<String> values =
+                messages.getStringList(path);
 
-        java.util.List<String> result =
-                new java.util.ArrayList<>();
+        List<String> result =
+                new ArrayList<>();
 
         for (String value : values) {
 
@@ -320,6 +553,12 @@ public final class CombatKeepInventory extends JavaPlugin {
                 text
         );
     }
+
+    /*
+     * ============================================================
+     * PLATFORM
+     * ============================================================
+     */
 
     private void loadPlatform() {
 
@@ -395,6 +634,12 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
     }
 
+    /*
+     * ============================================================
+     * WORLD
+     * ============================================================
+     */
+
     public boolean isWorldDisabled(
             World world
     ) {
@@ -420,6 +665,12 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
     }
 
+    /*
+     * ============================================================
+     * COMBAT
+     * ============================================================
+     */
+
     public long getCombatDurationSeconds() {
 
         return Math.max(
@@ -430,6 +681,12 @@ public final class CombatKeepInventory extends JavaPlugin {
                 )
         );
     }
+
+    /*
+     * ============================================================
+     * PVP
+     * ============================================================
+     */
 
     public boolean isPvPEnabled() {
         return pvpEnabled;
@@ -474,6 +731,12 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
     }
 
+    /*
+     * ============================================================
+     * GETTERS
+     * ============================================================
+     */
+
     public String getDetectedPlatform() {
         return detectedPlatform;
     }
@@ -494,35 +757,23 @@ public final class CombatKeepInventory extends JavaPlugin {
         return worldGuardHook;
     }
 
-    public PvPManagerHook getPvpManagerHook() {
-        return pvpManagerHook;
-    }
-
-    public InventoryJournalManager getInventoryJournalManager() {
-        return inventoryJournalManager;
-    }
+    /*
+     * ============================================================
+     * DISABLE
+     * ============================================================
+     */
 
     @Override
     public void onDisable() {
-
-        /*
-         * IMPORTANT:
-         *
-         * Journal files are intentionally NOT deleted.
-         * An unfinished combat-logout transaction must survive
-         * a server restart.
-         */
-
-        if (inventoryJournalManager != null) {
-            inventoryJournalManager.shutdown();
-        }
 
         if (combatManager != null) {
             combatManager.clear();
         }
 
         getLogger().info(
-                "CombatKeepInventory v1.1.0-SNAPSHOT-build1 disabled."
+                "CombatKeepInventory "
+                        + PLUGIN_VERSION
+                        + " disabled."
         );
     }
 }
