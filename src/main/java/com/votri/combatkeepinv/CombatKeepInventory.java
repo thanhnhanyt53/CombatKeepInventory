@@ -2,6 +2,7 @@ package com.votri.combatkeepinv;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -16,16 +17,19 @@ public final class CombatKeepInventory extends JavaPlugin {
     private CombatManager combatManager;
     private WorldGuardHook worldGuardHook;
     private PvPManagerHook pvpManagerHook;
+    private InventoryJournalManager inventoryJournalManager;
 
     private File messageFile;
     private FileConfiguration messages;
 
     private boolean pvpEnabled;
+
     private String detectedPlatform;
     private String selectedPlatform;
 
     @Override
     public void onEnable() {
+
         saveDefaultConfig();
         saveDefaultMessages();
 
@@ -33,6 +37,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         loadPlatform();
 
         if (!checkPlatform()) {
+
             getLogger().severe(
                     "Selected platform does not match the detected server platform."
             );
@@ -46,6 +51,12 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         initializeComponents();
 
+        /*
+         * ============================================================
+         * COMBAT LISTENER
+         * ============================================================
+         */
+
         getServer()
                 .getPluginManager()
                 .registerEvents(
@@ -53,10 +64,17 @@ public final class CombatKeepInventory extends JavaPlugin {
                                 this,
                                 combatManager,
                                 worldGuardHook,
-                                pvpManagerHook
+                                pvpManagerHook,
+                                inventoryJournalManager
                         ),
                         this
                 );
+
+        /*
+         * ============================================================
+         * COMBAT LOG LISTENER
+         * ============================================================
+         */
 
         getServer()
                 .getPluginManager()
@@ -64,7 +82,8 @@ public final class CombatKeepInventory extends JavaPlugin {
                         new CombatLogListener(
                                 this,
                                 combatManager,
-                                pvpManagerHook
+                                pvpManagerHook,
+                                inventoryJournalManager
                         ),
                         this
                 );
@@ -72,46 +91,53 @@ public final class CombatKeepInventory extends JavaPlugin {
         registerCommand();
 
         getLogger().info(
-                "CombatKeepInventory v1.1.0 enabled."
+                "CombatKeepInventory v1.1.0-SNAPSHOT-build1 enabled."
         );
 
         getLogger().info(
-                "Detected platform: " + detectedPlatform
+                "Detected platform: " +
+                        detectedPlatform
         );
 
         getLogger().info(
-                "Selected platform: " + selectedPlatform
+                "Selected platform: " +
+                        selectedPlatform
         );
 
         getLogger().info(
-                "Combat duration: "
-                        + getCombatDurationSeconds()
-                        + " seconds"
+                "Combat duration: " +
+                        getCombatDurationSeconds() +
+                        " seconds"
         );
 
         getLogger().info(
-                "PvP: "
-                        + (pvpEnabled
-                        ? "ENABLED"
-                        : "DISABLED")
+                "PvP: " +
+                        (pvpEnabled
+                                ? "ENABLED"
+                                : "DISABLED")
         );
 
         getLogger().info(
-                "WorldGuard: "
-                        + (worldGuardHook.isAvailable()
-                        ? "ENABLED"
-                        : "NOT INSTALLED")
+                "WorldGuard: " +
+                        (worldGuardHook.isAvailable()
+                                ? "ENABLED"
+                                : "NOT INSTALLED")
         );
 
         getLogger().info(
-                "PvPManager: "
-                        + (pvpManagerHook.isAvailable()
-                        ? "ENABLED"
-                        : "NOT INSTALLED")
+                "PvPManager: " +
+                        (pvpManagerHook.isAvailable()
+                                ? "ENABLED"
+                                : "NOT INSTALLED")
+        );
+
+        getLogger().info(
+                "Inventory journal: ENABLED"
         );
     }
 
     private void initializeComponents() {
+
         long seconds =
                 getCombatDurationSeconds();
 
@@ -123,10 +149,23 @@ public final class CombatKeepInventory extends JavaPlugin {
         worldGuardHook =
                 new WorldGuardHook(this);
 
+        /*
+         * PvPManagerHook uses reflection at runtime.
+         * PvPManager is NOT a mandatory Maven dependency.
+         */
         pvpManagerHook =
                 new PvPManagerHook(
                         this,
                         combatManager
+                );
+
+        /*
+         * Journal manager MUST be created before
+         * CombatListener / CombatLogListener.
+         */
+        inventoryJournalManager =
+                new InventoryJournalManager(
+                        this
                 );
 
         pvpEnabled =
@@ -137,13 +176,16 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     private void registerCommand() {
+
         PluginCommand command =
                 getCommand("cki");
 
         if (command == null) {
+
             getLogger().severe(
                     "Command 'cki' is missing from plugin.yml!"
             );
+
             return;
         }
 
@@ -155,6 +197,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     private void saveDefaultMessages() {
+
         if (!getDataFolder().exists()) {
             getDataFolder().mkdirs();
         }
@@ -166,6 +209,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (!messageFile.exists()) {
+
             saveResource(
                     "message.yml",
                     false
@@ -174,6 +218,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     public void loadMessages() {
+
         messageFile =
                 new File(
                         getDataFolder(),
@@ -181,6 +226,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (!messageFile.exists()) {
+
             saveResource(
                     "message.yml",
                     false
@@ -188,12 +234,14 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         messages =
-                YamlConfiguration.loadConfiguration(
-                        messageFile
-                );
+                YamlConfiguration
+                        .loadConfiguration(
+                                messageFile
+                        );
     }
 
     public void reloadPlugin() {
+
         reloadConfig();
         loadMessages();
         loadPlatform();
@@ -212,6 +260,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public String getMessage(
             String path
     ) {
+
         return getMessage(
                 path,
                 path
@@ -222,6 +271,7 @@ public final class CombatKeepInventory extends JavaPlugin {
             String path,
             String fallback
     ) {
+
         String value =
                 messages.getString(
                         path,
@@ -238,13 +288,17 @@ public final class CombatKeepInventory extends JavaPlugin {
     public java.util.List<String> getMessageList(
             String path
     ) {
+
         java.util.List<String> values =
-                messages.getStringList(path);
+                messages.getStringList(
+                        path
+                );
 
         java.util.List<String> result =
                 new java.util.ArrayList<>();
 
         for (String value : values) {
+
             result.add(
                     color(value)
             );
@@ -256,6 +310,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public String color(
             String text
     ) {
+
         if (text == null) {
             return "";
         }
@@ -267,6 +322,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     private void loadPlatform() {
+
         detectedPlatform =
                 detectPlatform();
 
@@ -287,6 +343,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     private String detectPlatform() {
+
         String name =
                 Bukkit.getName();
 
@@ -319,6 +376,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     private boolean checkPlatform() {
+
         if (!getConfig().getBoolean(
                 "platform.strict",
                 false
@@ -338,8 +396,9 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     public boolean isWorldDisabled(
-            org.bukkit.World world
+            World world
     ) {
+
         if (world == null) {
             return true;
         }
@@ -362,6 +421,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     public long getCombatDurationSeconds() {
+
         return Math.max(
                 1L,
                 getConfig().getLong(
@@ -378,6 +438,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public void setPvPEnabled(
             boolean enabled
     ) {
+
         pvpEnabled = enabled;
 
         getConfig().set(
@@ -391,6 +452,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public boolean canTogglePvP(
             CommandSender sender
     ) {
+
         boolean requirePermission =
                 getConfig().getBoolean(
                         "pvp.command.require-permission",
@@ -436,14 +498,31 @@ public final class CombatKeepInventory extends JavaPlugin {
         return pvpManagerHook;
     }
 
+    public InventoryJournalManager getInventoryJournalManager() {
+        return inventoryJournalManager;
+    }
+
     @Override
     public void onDisable() {
+
+        /*
+         * IMPORTANT:
+         *
+         * Journal files are intentionally NOT deleted.
+         * An unfinished combat-logout transaction must survive
+         * a server restart.
+         */
+
+        if (inventoryJournalManager != null) {
+            inventoryJournalManager.shutdown();
+        }
+
         if (combatManager != null) {
             combatManager.clear();
         }
 
         getLogger().info(
-                "CombatKeepInventory v1.1.0 disabled."
+                "CombatKeepInventory v1.1.0-SNAPSHOT-build1 disabled."
         );
     }
 }

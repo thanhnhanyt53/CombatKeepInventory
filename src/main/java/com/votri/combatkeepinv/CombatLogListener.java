@@ -15,7 +15,7 @@ import java.util.UUID;
 public final class CombatLogListener
         implements Listener {
 
-    private static final String BYPASS =
+    private static final String BYPASS_PERMISSION =
             "combatkeepinventory.bypass";
 
     private final CombatKeepInventory plugin;
@@ -29,11 +29,18 @@ public final class CombatLogListener
             PvPManagerHook pvpManager,
             InventoryJournalManager journalManager
     ) {
+
         this.plugin = plugin;
         this.combatManager = combatManager;
         this.pvpManager = pvpManager;
         this.journalManager = journalManager;
     }
+
+    /*
+     * ============================================================
+     * QUIT
+     * ============================================================
+     */
 
     @EventHandler(
             priority = EventPriority.MONITOR
@@ -41,10 +48,17 @@ public final class CombatLogListener
     public void onQuit(
             PlayerQuitEvent event
     ) {
+
         handleDisconnect(
                 event.getPlayer()
         );
     }
+
+    /*
+     * ============================================================
+     * KICK
+     * ============================================================
+     */
 
     @EventHandler(
             priority = EventPriority.MONITOR
@@ -52,10 +66,17 @@ public final class CombatLogListener
     public void onKick(
             PlayerKickEvent event
     ) {
+
         handleDisconnect(
                 event.getPlayer()
         );
     }
+
+    /*
+     * ============================================================
+     * JOIN
+     * ============================================================
+     */
 
     @EventHandler(
             priority = EventPriority.MONITOR
@@ -63,14 +84,22 @@ public final class CombatLogListener
     public void onJoin(
             PlayerJoinEvent event
     ) {
+
         journalManager.handleJoin(
                 event.getPlayer()
         );
     }
 
+    /*
+     * ============================================================
+     * DISCONNECT TRANSACTION
+     * ============================================================
+     */
+
     private void handleDisconnect(
             Player player
     ) {
+
         if (player == null) {
             return;
         }
@@ -79,21 +108,51 @@ public final class CombatLogListener
                 player.getUniqueId();
 
         /*
-         * HARD BYPASS.
+         * ========================================================
+         * HARD BYPASS
+         * ========================================================
          *
-         * Must happen before journal creation.
+         * Must happen BEFORE:
+         *
+         * - journal creation
+         * - inventory snapshot
+         * - punishment
+         * - combat-log processing
          */
-        if (player.hasPermission(BYPASS)) {
-            combatManager.remove(uuid);
+
+        if (player.hasPermission(
+                BYPASS_PERMISSION
+        )) {
+
+            combatManager.remove(
+                    uuid
+            );
+
             return;
         }
+
+        /*
+         * ========================================================
+         * WORLD CHECK
+         * ========================================================
+         */
 
         if (plugin.isWorldDisabled(
                 player.getWorld()
         )) {
-            combatManager.remove(uuid);
+
+            combatManager.remove(
+                    uuid
+            );
+
             return;
         }
+
+        /*
+         * ========================================================
+         * COMBAT LOG ENABLED?
+         * ========================================================
+         */
 
         if (!plugin.getConfig().getBoolean(
                 "pvp.combat-log.enabled",
@@ -103,12 +162,27 @@ public final class CombatLogListener
         }
 
         /*
-         * Duplicate protection.
+         * ========================================================
+         * DUPLICATE PROTECTION
+         * ========================================================
+         *
+         * PlayerKickEvent and PlayerQuitEvent can both reach
+         * this listener.
+         *
+         * The journal acts as the transaction lock.
          */
-        if (journalManager.isProcessing(uuid) ||
-                journalManager.hasJournal(uuid)) {
+
+        if (journalManager.isProcessing(uuid)
+                || journalManager.hasJournal(uuid)) {
+
             return;
         }
+
+        /*
+         * ========================================================
+         * OUR COMBAT STATE
+         * ========================================================
+         */
 
         boolean ownCombat = false;
 
@@ -116,11 +190,18 @@ public final class CombatLogListener
                 "pvp.combat-log.check-own-combat",
                 true
         )) {
+
             ownCombat =
                     combatManager.isInCombat(
                             uuid
                     );
         }
+
+        /*
+         * ========================================================
+         * PVPMANAGER STATE
+         * ========================================================
+         */
 
         boolean managerCombat = false;
 
@@ -128,6 +209,7 @@ public final class CombatLogListener
                 "pvp.combat-log.check-pvpmanager",
                 true
         )) {
+
             managerCombat =
                     pvpManager.isInCombat(
                             player
@@ -141,6 +223,12 @@ public final class CombatLogListener
         if (!inCombat) {
             return;
         }
+
+        /*
+         * ========================================================
+         * MINIMUM REMAINING TIME
+         * ========================================================
+         */
 
         long remaining =
                 combatManager.getRemainingSeconds(
@@ -157,43 +245,80 @@ public final class CombatLogListener
                 );
 
         /*
-         * Only apply minimum-remaining to our own timer.
-         * PvPManager-only combat does not have our timer.
+         * Only our own timer has a meaningful remaining value.
          */
         if (ownCombat &&
                 remaining < minimum) {
+
             return;
         }
 
         /*
-         * Snapshot FIRST.
+         * ========================================================
+         * CREATE SNAPSHOT
+         * ========================================================
+         *
+         * Snapshot MUST happen before the live inventory is
+         * modified.
          */
+
         if (!journalManager.createSnapshot(
                 player
         )) {
+
             return;
         }
 
         /*
-         * Process the logout directly.
+         * ========================================================
+         * PROCESS LOGOUT
+         * ========================================================
          *
-         * No player.kill command.
-         * No fake death.
+         * No /kill.
+         * No fake PlayerDeathEvent.
+         * No restoration on relog.
          */
-        journalManager.processCombatLogout(
-                player
-        );
+
+        boolean processed =
+                journalManager.processCombatLogout(
+                        player
+                );
+
+        if (!processed) {
+            return;
+        }
+
+        /*
+         * ========================================================
+         * PUNISH
+         * ========================================================
+         */
 
         punish(
                 player
         );
 
-        combatManager.remove(uuid);
+        /*
+         * ========================================================
+         * REMOVE COMBAT STATE
+         * ========================================================
+         */
+
+        combatManager.remove(
+                uuid
+        );
     }
+
+    /*
+     * ============================================================
+     * PUNISHMENT
+     * ============================================================
+     */
 
     private void punish(
             Player player
     ) {
+
         String playerName =
                 player.getName();
 
@@ -211,6 +336,7 @@ public final class CombatLogListener
 
             if (command == null ||
                     command.trim().isEmpty()) {
+
                 continue;
             }
 
@@ -231,6 +357,12 @@ public final class CombatLogListener
             );
         }
 
+        /*
+         * ========================================================
+         * BROADCAST
+         * ========================================================
+         */
+
         if (plugin.getConfig().getBoolean(
                 "pvp.combat-log.broadcast",
                 true
@@ -249,9 +381,17 @@ public final class CombatLogListener
                     );
 
             Bukkit.broadcastMessage(
-                    plugin.color(message)
+                    plugin.color(
+                            message
+                    )
             );
         }
+
+        /*
+         * ========================================================
+         * LOG
+         * ========================================================
+         */
 
         if (plugin.getConfig().getBoolean(
                 "pvp.combat-log.log",

@@ -22,17 +22,20 @@ public final class CombatListener implements Listener {
     private final CombatManager combatManager;
     private final WorldGuardHook worldGuard;
     private final PvPManagerHook pvpManager;
+    private final InventoryJournalManager journalManager;
 
     public CombatListener(
             CombatKeepInventory plugin,
             CombatManager combatManager,
             WorldGuardHook worldGuard,
-            PvPManagerHook pvpManager
+            PvPManagerHook pvpManager,
+            InventoryJournalManager journalManager
     ) {
         this.plugin = plugin;
         this.combatManager = combatManager;
         this.worldGuard = worldGuard;
         this.pvpManager = pvpManager;
+        this.journalManager = journalManager;
     }
 
     /*
@@ -48,19 +51,20 @@ public final class CombatListener implements Listener {
     public void onEntityDamageByEntity(
             EntityDamageByEntityEvent event
     ) {
+
         if (!(event.getEntity() instanceof Player victim)) {
             return;
         }
 
-        if (plugin.isWorldDisabled(victim.getWorld())) {
+        if (plugin.isWorldDisabled(
+                victim.getWorld()
+        )) {
             return;
         }
 
         /*
-         * Complete bypass for the victim.
-         *
-         * The victim is not combat-tagged and is not affected
-         * by CKI PvP logic.
+         * Bypass player is completely ignored by CKI.
+         * PvP itself is NOT cancelled.
          */
         if (victim.hasPermission(
                 BYPASS_PERMISSION
@@ -72,7 +76,9 @@ public final class CombatListener implements Listener {
                 event.getDamager();
 
         Player attacker =
-                getAttackingPlayer(damager);
+                getAttackingPlayer(
+                        damager
+                );
 
         /*
          * ========================================================
@@ -87,8 +93,8 @@ public final class CombatListener implements Listener {
             }
 
             /*
-             * A bypass attacker is not processed by CKI.
-             * PvP damage itself is not cancelled here.
+             * Attacker bypass:
+             * do not create CKI combat state.
              */
             if (attacker.hasPermission(
                     BYPASS_PERMISSION
@@ -118,7 +124,7 @@ public final class CombatListener implements Listener {
             }
 
             /*
-             * WorldGuard integration.
+             * WorldGuard.
              */
             if (!worldGuard.canPvP(
                     attacker,
@@ -136,7 +142,7 @@ public final class CombatListener implements Listener {
             }
 
             /*
-             * Player vs Player combat tag.
+             * Normal PvP combat tag.
              */
             combatManager.tag(
                     attacker.getUniqueId(),
@@ -156,10 +162,6 @@ public final class CombatListener implements Listener {
          * ========================================================
          * NON-PLAYER -> PLAYER
          * ========================================================
-         *
-         * Enabled only when:
-         *
-         * combat.player-vs-player-only: false
          */
 
         boolean playerVsPlayerOnly =
@@ -169,6 +171,13 @@ public final class CombatListener implements Listener {
                 );
 
         if (playerVsPlayerOnly) {
+            return;
+        }
+
+        /*
+         * Only tag if global PvP/CKI state allows it.
+         */
+        if (!plugin.isPvPEnabled()) {
             return;
         }
 
@@ -195,6 +204,7 @@ public final class CombatListener implements Listener {
     public void onPlayerDeath(
             PlayerDeathEvent event
     ) {
+
         Player victim =
                 event.getEntity();
 
@@ -209,19 +219,34 @@ public final class CombatListener implements Listener {
 
         /*
          * ========================================================
-         * COMPLETE BYPASS
+         * CANCEL ANY PENDING JOURNAL
          * ========================================================
          *
-         * Bypass players always keep their inventory.
+         * A real death is authoritative.
+         *
+         * If a stale journal exists, it must not be restored later.
+         */
+        journalManager.cancelForDeath(
+                uuid
+        );
+
+        /*
+         * ========================================================
+         * COMPLETE BYPASS
+         * ========================================================
          */
 
         if (victim.hasPermission(
                 BYPASS_PERMISSION
         )) {
 
-            handleKeepInventory(event);
+            handleKeepInventory(
+                    event
+            );
 
-            combatManager.remove(uuid);
+            combatManager.remove(
+                    uuid
+            );
 
             return;
         }
@@ -244,12 +269,21 @@ public final class CombatListener implements Listener {
                     );
 
             if (shouldDrop) {
-                handleDropInventory(event);
+
+                handleDropInventory(
+                        event
+                );
+
             } else {
-                handleKeepInventory(event);
+
+                handleKeepInventory(
+                        event
+                );
             }
 
-            combatManager.remove(uuid);
+            combatManager.remove(
+                    uuid
+            );
 
             return;
         }
@@ -261,7 +295,9 @@ public final class CombatListener implements Listener {
          */
 
         boolean ownCombat =
-                combatManager.isInCombat(uuid);
+                combatManager.isInCombat(
+                        uuid
+                );
 
         boolean usePvPManager =
                 plugin.getConfig().getBoolean(
@@ -271,7 +307,9 @@ public final class CombatListener implements Listener {
 
         boolean pvpManagerCombat =
                 usePvPManager
-                        && pvpManager.isInCombat(victim);
+                        && pvpManager.isInCombat(
+                        victim
+                );
 
         boolean inCombat =
                 ownCombat ||
@@ -292,12 +330,21 @@ public final class CombatListener implements Listener {
                     );
 
             if (shouldDrop) {
-                handleDropInventory(event);
+
+                handleDropInventory(
+                        event
+                );
+
             } else {
-                handleKeepInventory(event);
+
+                handleKeepInventory(
+                        event
+                );
             }
 
-            combatManager.remove(uuid);
+            combatManager.remove(
+                    uuid
+            );
 
             return;
         }
@@ -315,69 +362,63 @@ public final class CombatListener implements Listener {
                 );
 
         if (shouldKeep) {
-            handleKeepInventory(event);
+
+            handleKeepInventory(
+                    event
+            );
+
         } else {
-            handleDropInventory(event);
+
+            handleDropInventory(
+                    event
+            );
         }
 
-        combatManager.remove(uuid);
+        combatManager.remove(
+                uuid
+        );
     }
 
     /*
      * ============================================================
      * FORCE INVENTORY DROP
      * ============================================================
-     *
-     * Explicitly rebuild the drops from the live inventory.
-     *
-     * This is important when the server gamerule is:
-     *
-     * keepInventory = true
      */
 
     private void handleDropInventory(
             PlayerDeathEvent event
     ) {
+
         Player player =
                 event.getEntity();
 
+        /*
+         * Clear server-generated drops.
+         *
+         * This is important when gamerule keepInventory=true.
+         */
         event.getDrops().clear();
 
-        /*
-         * Main inventory.
-         */
         addDrops(
                 event,
                 player.getInventory()
                         .getStorageContents()
         );
 
-        /*
-         * Armor.
-         */
         addDrops(
                 event,
                 player.getInventory()
                         .getArmorContents()
         );
 
-        /*
-         * Offhand / extra contents.
-         */
         addDrops(
                 event,
                 player.getInventory()
                         .getExtraContents()
         );
 
-        /*
-         * Explicitly disable inventory retention.
-         */
         event.setKeepInventory(false);
 
-        /*
-         * Experience.
-         */
         boolean keepExperience =
                 plugin.getConfig().getBoolean(
                         "death.keep-experience",
@@ -385,17 +426,27 @@ public final class CombatListener implements Listener {
                 );
 
         if (keepExperience) {
+
             event.setKeepLevel(true);
+
         } else {
+
             event.setKeepLevel(false);
             event.setDroppedExp(0);
         }
     }
 
+    /*
+     * ============================================================
+     * ADD INVENTORY CONTENTS TO DROPS
+     * ============================================================
+     */
+
     private void addDrops(
             PlayerDeathEvent event,
             ItemStack[] items
     ) {
+
         if (items == null) {
             return;
         }
@@ -425,11 +476,9 @@ public final class CombatListener implements Listener {
     private void handleKeepInventory(
             PlayerDeathEvent event
     ) {
+
         event.setKeepInventory(true);
 
-        /*
-         * Prevent duplicate drops.
-         */
         event.getDrops().clear();
 
         boolean keepExperience =
@@ -439,9 +488,12 @@ public final class CombatListener implements Listener {
                 );
 
         if (keepExperience) {
+
             event.setKeepLevel(true);
             event.setDroppedExp(0);
+
         } else {
+
             event.setKeepLevel(false);
             event.setDroppedExp(0);
         }
@@ -456,6 +508,7 @@ public final class CombatListener implements Listener {
     private Player getAttackingPlayer(
             Entity damager
     ) {
+
         if (damager instanceof Player player) {
             return player;
         }
@@ -484,6 +537,7 @@ public final class CombatListener implements Listener {
             Player victim,
             String reason
     ) {
+
         if (!plugin.getConfig().getBoolean(
                 "debug.combat",
                 false
@@ -506,6 +560,7 @@ public final class CombatListener implements Listener {
             Player victim,
             Entity damager
     ) {
+
         if (!plugin.getConfig().getBoolean(
                 "debug.combat",
                 false

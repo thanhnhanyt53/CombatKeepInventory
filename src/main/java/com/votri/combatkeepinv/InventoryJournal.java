@@ -33,16 +33,55 @@ public final class InventoryJournal {
             ItemStack[] extra,
             Location location
     ) {
-        this.uuid = uuid;
-        this.storage = cloneItems(storage);
-        this.armor = cloneItems(armor);
-        this.extra = cloneItems(extra);
-        this.location = location == null
-                ? null
-                : location.clone();
 
-        this.createdAt = System.currentTimeMillis();
-        this.state = State.SNAPSHOTTED;
+        this(
+                uuid,
+                storage,
+                armor,
+                extra,
+                location,
+                System.currentTimeMillis()
+        );
+    }
+
+    public InventoryJournal(
+            UUID uuid,
+            ItemStack[] storage,
+            ItemStack[] armor,
+            ItemStack[] extra,
+            Location location,
+            long createdAt
+    ) {
+
+        this.uuid = uuid;
+
+        this.storage =
+                cloneItems(
+                        storage
+                );
+
+        this.armor =
+                cloneItems(
+                        armor
+                );
+
+        this.extra =
+                cloneItems(
+                        extra
+                );
+
+        this.location =
+                location == null
+                        ? null
+                        : location.clone();
+
+        this.createdAt =
+                createdAt > 0L
+                        ? createdAt
+                        : System.currentTimeMillis();
+
+        this.state =
+                State.SNAPSHOTTED;
     }
 
     public UUID getUuid() {
@@ -62,6 +101,7 @@ public final class InventoryJournal {
     }
 
     public Location getLocation() {
+
         return location == null
                 ? null
                 : location.clone();
@@ -75,22 +115,38 @@ public final class InventoryJournal {
         return state;
     }
 
-    public void setState(State state) {
+    public void setState(
+            State state
+    ) {
+
+        if (state == null) {
+            return;
+        }
+
         this.state = state;
     }
 
     private static ItemStack[] cloneItems(
             ItemStack[] source
     ) {
+
         if (source == null) {
             return new ItemStack[0];
         }
 
         ItemStack[] result =
-                new ItemStack[source.length];
+                new ItemStack[
+                        source.length
+                ];
 
-        for (int i = 0; i < source.length; i++) {
-            ItemStack item = source[i];
+        for (
+                int i = 0;
+                i < source.length;
+                i++
+        ) {
+
+            ItemStack item =
+                    source[i];
 
             result[i] =
                     item == null

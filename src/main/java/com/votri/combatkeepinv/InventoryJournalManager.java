@@ -3,7 +3,6 @@ package com.votri.combatkeepinv;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -23,6 +22,9 @@ public final class InventoryJournalManager {
     private final Map<UUID, InventoryJournal> journals =
             new ConcurrentHashMap<>();
 
+    /*
+     * UUID -> transaction lock
+     */
     private final Map<UUID, Boolean> processing =
             new ConcurrentHashMap<>();
 
@@ -31,6 +33,7 @@ public final class InventoryJournalManager {
     public InventoryJournalManager(
             CombatKeepInventory plugin
     ) {
+
         this.plugin = plugin;
 
         journalDirectory =
@@ -39,33 +42,60 @@ public final class InventoryJournalManager {
                         "journal"
                 );
 
-        if (!journalDirectory.exists()) {
-            journalDirectory.mkdirs();
+        if (!journalDirectory.exists()
+                && !journalDirectory.mkdirs()) {
+
+            plugin.getLogger().warning(
+                    "Could not create journal directory: "
+                            + journalDirectory.getAbsolutePath()
+            );
         }
 
         loadJournals();
     }
 
-    public boolean isProcessing(UUID uuid) {
-        return uuid != null &&
-                processing.containsKey(uuid);
+    /*
+     * ============================================================
+     * QUERY
+     * ============================================================
+     */
+
+    public boolean isProcessing(
+            UUID uuid
+    ) {
+
+        return uuid != null
+                && processing.containsKey(uuid);
     }
 
-    public boolean hasJournal(UUID uuid) {
-        return uuid != null &&
-                journals.containsKey(uuid);
+    public boolean hasJournal(
+            UUID uuid
+    ) {
+
+        return uuid != null
+                && journals.containsKey(uuid);
     }
 
-    public InventoryJournal get(UUID uuid) {
+    public InventoryJournal get(
+            UUID uuid
+    ) {
+
         return uuid == null
                 ? null
                 : journals.get(uuid);
     }
 
-    /**
-     * Creates the journal BEFORE modifying the live inventory.
+    /*
+     * ============================================================
+     * CREATE SNAPSHOT
+     * ============================================================
+     *
+     * This is the FIRST step of the transaction.
      */
-    public boolean createSnapshot(Player player) {
+
+    public boolean createSnapshot(
+            Player player
+    ) {
 
         if (player == null) {
             return false;
@@ -74,15 +104,31 @@ public final class InventoryJournalManager {
         UUID uuid =
                 player.getUniqueId();
 
-        if (!processing.putIfAbsent(
-                uuid,
-                Boolean.TRUE
-        )) {
+        /*
+         * Existing transaction.
+         */
+        if (journals.containsKey(uuid)) {
             return false;
         }
 
+        /*
+         * Acquire transaction lock.
+         */
+        if (processing.putIfAbsent(
+                uuid,
+                Boolean.TRUE
+        ) != null) {
+
+            return false;
+        }
+
+        /*
+         * Double-check after acquiring lock.
+         */
         if (journals.containsKey(uuid)) {
+
             processing.remove(uuid);
+
             return false;
         }
 
@@ -103,19 +149,36 @@ public final class InventoryJournalManager {
                 journal
         );
 
-        save(journal);
+        /*
+         * Persist snapshot BEFORE modifying live inventory.
+         */
+        if (!save(journal)) {
+
+            journals.remove(
+                    uuid,
+                    journal
+            );
+
+            processing.remove(
+                    uuid
+            );
+
+            return false;
+        }
 
         return true;
     }
 
-    /**
-     * Drops the snapshotted inventory and clears the
-     * live player inventory so Bukkit cannot save the old
-     * inventory back during disconnect.
+    /*
+     * ============================================================
+     * PROCESS COMBAT LOGOUT
+     * ============================================================
      */
+
     public boolean processCombatLogout(
             Player player
     ) {
+
         if (player == null) {
             return false;
         }
@@ -130,11 +193,36 @@ public final class InventoryJournalManager {
             return false;
         }
 
+        /*
+         * If already processed, NEVER drop again.
+         */
+        if (journal.getState()
+                == InventoryJournal.State.PROCESSED
+                || journal.getState()
+                == InventoryJournal.State.JOIN_PENDING) {
+
+            return false;
+        }
+
         journal.setState(
                 InventoryJournal.State.PROCESSING
         );
 
-        save(journal);
+        if (!save(journal)) {
+
+            plugin.getLogger().severe(
+                    "Could not persist PROCESSING state for "
+                            + uuid
+            );
+
+            return false;
+        }
+
+        /*
+         * ========================================================
+         * DROP SNAPSHOT
+         * ========================================================
+         */
 
         dropItems(
                 player,
@@ -142,30 +230,60 @@ public final class InventoryJournalManager {
         );
 
         /*
-         * CRITICAL:
+         * ========================================================
+         * CLEAR LIVE INVENTORY
+         * ========================================================
          *
-         * Clear the live inventory after snapshot.
-         * This prevents old inventory data from being
-         * written back into player-data during logout.
+         * This is critical.
+         *
+         * The player's live Bukkit inventory must no longer
+         * contain the old inventory when the server saves the
+         * player-data after disconnect.
          */
-        player.getInventory()
-                .clear();
+
+        player.getInventory().clear();
+
+        /*
+         * ========================================================
+         * MARK TRANSACTION COMPLETE
+         * ========================================================
+         */
 
         journal.setState(
                 InventoryJournal.State.PROCESSED
         );
 
-        save(journal);
+        if (!save(journal)) {
+
+            plugin.getLogger().severe(
+                    "Could not persist PROCESSED state for "
+                            + uuid
+            );
+
+            /*
+             * Keep the journal in memory and on disk as far as
+             * possible. It is safer to retain a journal than
+             * accidentally restore an old inventory.
+             */
+            return true;
+        }
 
         return true;
     }
 
-    /**
-     * Called on death. A real death is the authoritative
-     * inventory transaction, therefore a pending logout
-     * journal must not be restored.
+    /*
+     * ============================================================
+     * DEATH
+     * ============================================================
+     *
+     * Real death is authoritative.
+     *
+     * Never restore a logout snapshot because of death.
      */
-    public void cancelForDeath(UUID uuid) {
+
+    public void cancelForDeath(
+            UUID uuid
+    ) {
 
         if (uuid == null) {
             return;
@@ -181,13 +299,17 @@ public final class InventoryJournalManager {
         }
     }
 
-    /**
-     * Player joined again. Never restore the old snapshot.
+    /*
+     * ============================================================
+     * JOIN
+     * ============================================================
      *
-     * The journal only exists to prove that the previous
-     * disconnect transaction was already processed.
+     * NEVER restore the snapshot.
      */
-    public void handleJoin(Player player) {
+
+    public void handleJoin(
+            Player player
+    ) {
 
         if (player == null) {
             return;
@@ -200,9 +322,21 @@ public final class InventoryJournalManager {
                 journals.get(uuid);
 
         if (journal == null) {
+
             processing.remove(uuid);
+
             return;
         }
+
+        /*
+         * The player is reconnecting after a transaction.
+         *
+         * We explicitly DO NOT call:
+         *
+         * setStorageContents(...)
+         * setArmorContents(...)
+         * setExtraContents(...)
+         */
 
         journal.setState(
                 InventoryJournal.State.JOIN_PENDING
@@ -211,8 +345,8 @@ public final class InventoryJournalManager {
         save(journal);
 
         /*
-         * Wait until Bukkit has finished loading the
-         * player's persistent state.
+         * Wait until Bukkit has completed the normal player
+         * loading/join sequence.
          */
         Bukkit.getScheduler().runTaskLater(
                 plugin,
@@ -221,7 +355,15 @@ public final class InventoryJournalManager {
         );
     }
 
-    private void confirmJoin(UUID uuid) {
+    /*
+     * ============================================================
+     * CONFIRM JOIN
+     * ============================================================
+     */
+
+    private void confirmJoin(
+            UUID uuid
+    ) {
 
         InventoryJournal journal =
                 journals.remove(uuid);
@@ -229,20 +371,43 @@ public final class InventoryJournalManager {
         processing.remove(uuid);
 
         if (journal != null) {
-            deleteFile(uuid);
+
+            deleteFile(
+                    uuid
+            );
         }
     }
+
+    /*
+     * ============================================================
+     * DROP SNAPSHOT
+     * ============================================================
+     */
 
     private void dropItems(
             Player player,
             InventoryJournal journal
     ) {
+
         Location location =
                 journal.getLocation();
 
-        if (location == null) {
+        if (location == null
+                || location.getWorld() == null) {
+
             location =
                     player.getLocation();
+        }
+
+        if (location == null
+                || location.getWorld() == null) {
+
+            plugin.getLogger().warning(
+                    "Could not determine drop location for "
+                            + journal.getUuid()
+            );
+
+            return;
         }
 
         dropArray(
@@ -265,9 +430,11 @@ public final class InventoryJournalManager {
             Location location,
             ItemStack[] items
     ) {
-        if (location == null ||
-                location.getWorld() == null ||
-                items == null) {
+
+        if (location == null
+                || location.getWorld() == null
+                || items == null) {
+
             return;
         }
 
@@ -276,8 +443,11 @@ public final class InventoryJournalManager {
 
         for (ItemStack item : items) {
 
-            if (item == null ||
-                    item.getType().isAir()) {
+            if (item == null) {
+                continue;
+            }
+
+            if (item.getType().isAir()) {
                 continue;
             }
 
@@ -288,9 +458,20 @@ public final class InventoryJournalManager {
         }
     }
 
-    private void save(
+    /*
+     * ============================================================
+     * SAVE JOURNAL
+     * ============================================================
+     */
+
+    private boolean save(
             InventoryJournal journal
     ) {
+
+        if (journal == null) {
+            return false;
+        }
+
         File file =
                 getFile(
                         journal.getUuid()
@@ -301,12 +482,14 @@ public final class InventoryJournalManager {
 
         config.set(
                 "uuid",
-                journal.getUuid().toString()
+                journal.getUuid()
+                        .toString()
         );
 
         config.set(
                 "state",
-                journal.getState().name()
+                journal.getState()
+                        .name()
         );
 
         config.set(
@@ -338,8 +521,8 @@ public final class InventoryJournalManager {
         Location location =
                 journal.getLocation();
 
-        if (location != null &&
-                location.getWorld() != null) {
+        if (location != null
+                && location.getWorld() != null) {
 
             config.set(
                     "location.world",
@@ -374,23 +557,39 @@ public final class InventoryJournalManager {
         }
 
         try {
-            config.save(file);
-        } catch (IOException exception) {
-            plugin.getLogger().severe(
-                    "Could not save inventory journal " +
-                            journal.getUuid() +
-                            ": " +
-                            exception.getMessage()
+
+            config.save(
+                    file
             );
+
+            return true;
+
+        } catch (IOException exception) {
+
+            plugin.getLogger().severe(
+                    "Could not save inventory journal "
+                            + journal.getUuid()
+                            + ": "
+                            + exception.getMessage()
+            );
+
+            return false;
         }
     }
+
+    /*
+     * ============================================================
+     * LOAD JOURNALS
+     * ============================================================
+     */
 
     private void loadJournals() {
 
         File[] files =
                 journalDirectory.listFiles(
                         (dir, name) ->
-                                name.endsWith(".yml")
+                                name.toLowerCase()
+                                        .endsWith(".yml")
                 );
 
         if (files == null) {
@@ -400,19 +599,26 @@ public final class InventoryJournalManager {
         for (File file : files) {
 
             try {
+
                 YamlConfiguration config =
                         YamlConfiguration
-                                .loadConfiguration(file);
+                                .loadConfiguration(
+                                        file
+                                );
 
                 String uuidText =
-                        config.getString("uuid");
+                        config.getString(
+                                "uuid"
+                        );
 
                 if (uuidText == null) {
                     continue;
                 }
 
                 UUID uuid =
-                        UUID.fromString(uuidText);
+                        UUID.fromString(
+                                uuidText
+                        );
 
                 ItemStack[] storage =
                         fromList(
@@ -436,7 +642,15 @@ public final class InventoryJournalManager {
                         );
 
                 Location location =
-                        loadLocation(config);
+                        loadLocation(
+                                config
+                        );
+
+                long createdAt =
+                        config.getLong(
+                                "created-at",
+                                System.currentTimeMillis()
+                        );
 
                 InventoryJournal journal =
                         new InventoryJournal(
@@ -444,7 +658,8 @@ public final class InventoryJournalManager {
                                 storage,
                                 armor,
                                 extra,
-                                location
+                                location,
+                                createdAt
                         );
 
                 String state =
@@ -454,17 +669,30 @@ public final class InventoryJournalManager {
                         );
 
                 try {
+
                     journal.setState(
                             InventoryJournal.State
-                                    .valueOf(state)
+                                    .valueOf(
+                                            state
+                                    )
                     );
-                } catch (IllegalArgumentException ignored) {
+
+                } catch (
+                        IllegalArgumentException ignored
+                ) {
+
                     journal.setState(
                             InventoryJournal.State
                                     .SNAPSHOTTED
                     );
                 }
 
+                /*
+                 * Any persisted journal is considered a pending
+                 * transaction marker.
+                 *
+                 * We NEVER restore it.
+                 */
                 journals.put(
                         uuid,
                         journal
@@ -473,19 +701,26 @@ public final class InventoryJournalManager {
             } catch (Throwable throwable) {
 
                 plugin.getLogger().warning(
-                        "Could not load inventory journal " +
-                                file.getName() +
-                                ": " +
-                                throwable.getClass()
+                        "Could not load inventory journal "
+                                + file.getName()
+                                + ": "
+                                + throwable.getClass()
                                         .getSimpleName()
                 );
             }
         }
     }
 
+    /*
+     * ============================================================
+     * LOAD LOCATION
+     * ============================================================
+     */
+
     private Location loadLocation(
             YamlConfiguration config
     ) {
+
         String worldName =
                 config.getString(
                         "location.world"
@@ -496,7 +731,9 @@ public final class InventoryJournalManager {
         }
 
         World world =
-                Bukkit.getWorld(worldName);
+                Bukkit.getWorld(
+                        worldName
+                );
 
         if (world == null) {
             return null;
@@ -522,9 +759,16 @@ public final class InventoryJournalManager {
         );
     }
 
+    /*
+     * ============================================================
+     * SERIALIZATION
+     * ============================================================
+     */
+
     private List<ItemStack> toList(
             ItemStack[] items
     ) {
+
         List<ItemStack> result =
                 new ArrayList<>();
 
@@ -533,6 +777,7 @@ public final class InventoryJournalManager {
         }
 
         for (ItemStack item : items) {
+
             result.add(
                     item == null
                             ? null
@@ -546,6 +791,7 @@ public final class InventoryJournalManager {
     private ItemStack[] fromList(
             List<?> list
     ) {
+
         if (list == null) {
             return new ItemStack[0];
         }
@@ -556,10 +802,13 @@ public final class InventoryJournalManager {
         for (Object value : list) {
 
             if (value instanceof ItemStack item) {
+
                 result.add(
                         item.clone()
                 );
+
             } else {
+
                 result.add(null);
             }
         }
@@ -569,33 +818,53 @@ public final class InventoryJournalManager {
         );
     }
 
-    private File getFile(UUID uuid) {
+    /*
+     * ============================================================
+     * FILE MANAGEMENT
+     * ============================================================
+     */
+
+    private File getFile(
+            UUID uuid
+    ) {
+
         return new File(
                 journalDirectory,
                 uuid + ".yml"
         );
     }
 
-    private void deleteFile(UUID uuid) {
-        File file =
-                getFile(uuid);
+    private void deleteFile(
+            UUID uuid
+    ) {
 
-        if (file.exists() &&
-                !file.delete()) {
+        File file =
+                getFile(
+                        uuid
+                );
+
+        if (file.exists()
+                && !file.delete()) {
 
             plugin.getLogger().warning(
-                    "Could not delete inventory journal: " +
-                            file.getName()
+                    "Could not delete inventory journal: "
+                            + file.getName()
             );
         }
     }
 
+    /*
+     * ============================================================
+     * SHUTDOWN
+     * ============================================================
+     */
+
     public void shutdown() {
+
         /*
-         * Do NOT delete journals here.
+         * DO NOT delete journal files.
          *
-         * A journal may represent an unfinished combat
-         * logout transaction and must survive a restart.
+         * An unfinished transaction must survive a restart.
          */
         processing.clear();
     }
