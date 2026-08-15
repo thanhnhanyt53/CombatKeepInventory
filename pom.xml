@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
@@ -9,22 +8,19 @@
 
     <groupId>com.votri</groupId>
     <artifactId>CombatKeepInventory</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.0-SNAPSHOT-build1</version>
     <packaging>jar</packaging>
 
     <name>CombatKeepInventory</name>
-    <description>Combat logging protection with configurable keep-inventory behavior.</description>
+    <description>
+        Combat-aware inventory and death handling plugin for Bukkit/Paper-compatible servers.
+    </description>
 
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
     </properties>
-
-    <!-- ========================= -->
-    <!-- Repositories               -->
-    <!-- ========================= -->
 
     <repositories>
 
@@ -34,23 +30,26 @@
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
 
-    </repositories>
+        <!-- WorldGuard / WorldEdit -->
+        <repository>
+            <id>enginehub</id>
+            <url>https://maven.enginehub.org/repo/</url>
+        </repository>
 
-    <!-- ========================= -->
-    <!-- Dependencies               -->
-    <!-- ========================= -->
+        <!-- PvPManager -->
+        <repository>
+            <id>nitrado</id>
+            <url>https://repo.nitrado.net/repository/maven-releases/</url>
+        </repository>
+
+    </repositories>
 
     <dependencies>
 
-        <!--
-            Paper API
+        <!-- ================================================== -->
+        <!-- Bukkit/Paper API                                  -->
+        <!-- ================================================== -->
 
-            Paper is used only as the compile-time API.
-
-            Because Paper implements the Bukkit/Spigot API,
-            the resulting plugin can also run on compatible
-            Spigot and Purpur servers.
-        -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -58,15 +57,58 @@
             <scope>provided</scope>
         </dependency>
 
+
+        <!-- ================================================== -->
+        <!-- WorldEdit API                                     -->
+        <!-- Optional integration                              -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>worldedit-bukkit</artifactId>
+            <version>7.3.0</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- WorldGuard API                                    -->
+        <!-- Optional integration                              -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <version>7.0.13</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- PvPManager API                                    -->
+        <!-- Optional integration                              -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.rylinaux</groupId>
+            <artifactId>PvPManager</artifactId>
+            <version>3.27.1</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+
     </dependencies>
 
-    <!-- ========================= -->
-    <!-- Build                      -->
-    <!-- ========================= -->
+
+    <!-- ====================================================== -->
+    <!-- BUILD                                                  -->
+    <!-- ====================================================== -->
 
     <build>
 
-        <finalName>CombatKeepInventory-${project.version}</finalName>
+        <finalName>CombatKeepInventory-1.1.0-SNAPSHOT-build1</finalName>
 
         <plugins>
 
@@ -77,30 +119,13 @@
                 <version>3.14.0</version>
 
                 <configuration>
-                    <release>${java.version}</release>
+                    <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
 
-            <!-- Clean -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-clean-plugin</artifactId>
-                <version>3.4.1</version>
-            </plugin>
 
-            <!-- Resources -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
-
-                <configuration>
-                    <encoding>${project.build.sourceEncoding}</encoding>
-                </configuration>
-            </plugin>
-
-            <!-- Jar -->
+            <!-- Create normal plugin JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -111,11 +136,6 @@
                         <manifest>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
-
-                        <manifestEntries>
-                            <Implementation-Title>CombatKeepInventory</Implementation-Title>
-                            <Implementation-Version>${project.version}</Implementation-Version>
-                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
