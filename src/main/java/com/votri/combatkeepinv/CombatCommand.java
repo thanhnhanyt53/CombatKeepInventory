@@ -103,7 +103,7 @@ public final class CombatCommand
         sender.sendMessage(
                 plugin.getMessage(
                         "command.info.title",
-                        "&cCombatKeepInventory &f1.0.0"
+                        "&cCombatKeepInventory &f1.1.0"
                 )
         );
 
@@ -266,12 +266,15 @@ public final class CombatCommand
             sender.sendMessage(
                     "&e/cki reload"
             );
+
             sender.sendMessage(
                     "&e/cki info"
             );
+
             sender.sendMessage(
                     "&e/cki pvp <on|off>"
             );
+
             return;
         }
 

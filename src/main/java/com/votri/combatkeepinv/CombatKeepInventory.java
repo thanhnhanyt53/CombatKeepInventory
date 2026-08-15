@@ -46,24 +46,28 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         initializeComponents();
 
-        getServer().getPluginManager().registerEvents(
-                new CombatListener(
-                        this,
-                        combatManager,
-                        worldGuardHook,
-                        pvpManagerHook
-                ),
-                this
-        );
+        getServer()
+                .getPluginManager()
+                .registerEvents(
+                        new CombatListener(
+                                this,
+                                combatManager,
+                                worldGuardHook,
+                                pvpManagerHook
+                        ),
+                        this
+                );
 
-        getServer().getPluginManager().registerEvents(
-                new CombatLogListener(
-                        this,
-                        combatManager,
-                        pvpManagerHook
-                ),
-                this
-        );
+        getServer()
+                .getPluginManager()
+                .registerEvents(
+                        new CombatLogListener(
+                                this,
+                                combatManager,
+                                pvpManagerHook
+                        ),
+                        this
+                );
 
         registerCommand();
 
@@ -72,40 +76,38 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
 
         getLogger().info(
-                "Detected platform: " +
-                        detectedPlatform
+                "Detected platform: " + detectedPlatform
         );
 
         getLogger().info(
-                "Selected platform: " +
-                        selectedPlatform
+                "Selected platform: " + selectedPlatform
         );
 
         getLogger().info(
-                "Combat duration: " +
-                        getCombatDurationSeconds() +
-                        " seconds"
+                "Combat duration: "
+                        + getCombatDurationSeconds()
+                        + " seconds"
         );
 
         getLogger().info(
-                "PvP: " +
-                        (pvpEnabled
-                                ? "ENABLED"
-                                : "DISABLED")
+                "PvP: "
+                        + (pvpEnabled
+                        ? "ENABLED"
+                        : "DISABLED")
         );
 
         getLogger().info(
-                "WorldGuard: " +
-                        (worldGuardHook.isAvailable()
-                                ? "ENABLED"
-                                : "NOT INSTALLED")
+                "WorldGuard: "
+                        + (worldGuardHook.isAvailable()
+                        ? "ENABLED"
+                        : "NOT INSTALLED")
         );
 
         getLogger().info(
-                "PvPManager: " +
-                        (pvpManagerHook.isAvailable()
-                                ? "ENABLED"
-                                : "NOT INSTALLED")
+                "PvPManager: "
+                        + (pvpManagerHook.isAvailable()
+                        ? "ENABLED"
+                        : "NOT INSTALLED")
         );
     }
 
@@ -230,9 +232,7 @@ public final class CombatKeepInventory extends JavaPlugin {
             value = fallback;
         }
 
-        return color(
-                value
-        );
+        return color(value);
     }
 
     public java.util.List<String> getMessageList(

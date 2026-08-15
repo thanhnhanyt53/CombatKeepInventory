@@ -5,26 +5,34 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.List;
 import java.util.UUID;
 
-public final class CombatLogListener implements Listener {
+public final class CombatLogListener
+        implements Listener {
+
+    private static final String BYPASS =
+            "combatkeepinventory.bypass";
 
     private final CombatKeepInventory plugin;
     private final CombatManager combatManager;
     private final PvPManagerHook pvpManager;
+    private final InventoryJournalManager journalManager;
 
     public CombatLogListener(
             CombatKeepInventory plugin,
             CombatManager combatManager,
-            PvPManagerHook pvpManager
+            PvPManagerHook pvpManager,
+            InventoryJournalManager journalManager
     ) {
         this.plugin = plugin;
         this.combatManager = combatManager;
         this.pvpManager = pvpManager;
+        this.journalManager = journalManager;
     }
 
     @EventHandler(
@@ -33,7 +41,9 @@ public final class CombatLogListener implements Listener {
     public void onQuit(
             PlayerQuitEvent event
     ) {
-        handleQuit(event.getPlayer());
+        handleDisconnect(
+                event.getPlayer()
+        );
     }
 
     @EventHandler(
@@ -42,28 +52,46 @@ public final class CombatLogListener implements Listener {
     public void onKick(
             PlayerKickEvent event
     ) {
-        handleQuit(event.getPlayer());
+        handleDisconnect(
+                event.getPlayer()
+        );
     }
 
-    private void handleQuit(
+    @EventHandler(
+            priority = EventPriority.MONITOR
+    )
+    public void onJoin(
+            PlayerJoinEvent event
+    ) {
+        journalManager.handleJoin(
+                event.getPlayer()
+        );
+    }
+
+    private void handleDisconnect(
             Player player
     ) {
         if (player == null) {
             return;
         }
 
-        if (plugin.isWorldDisabled(
-                player.getWorld()
-        )) {
+        UUID uuid =
+                player.getUniqueId();
+
+        /*
+         * HARD BYPASS.
+         *
+         * Must happen before journal creation.
+         */
+        if (player.hasPermission(BYPASS)) {
+            combatManager.remove(uuid);
             return;
         }
 
-        if (player.hasPermission(
-                "combatkeepinventory.bypass"
+        if (plugin.isWorldDisabled(
+                player.getWorld()
         )) {
-            combatManager.remove(
-                    player.getUniqueId()
-            );
+            combatManager.remove(uuid);
             return;
         }
 
@@ -71,6 +99,14 @@ public final class CombatLogListener implements Listener {
                 "pvp.combat-log.enabled",
                 true
         )) {
+            return;
+        }
+
+        /*
+         * Duplicate protection.
+         */
+        if (journalManager.isProcessing(uuid) ||
+                journalManager.hasJournal(uuid)) {
             return;
         }
 
@@ -82,7 +118,7 @@ public final class CombatLogListener implements Listener {
         )) {
             ownCombat =
                     combatManager.isInCombat(
-                            player.getUniqueId()
+                            uuid
                     );
         }
 
@@ -93,19 +129,22 @@ public final class CombatLogListener implements Listener {
                 true
         )) {
             managerCombat =
-                    pvpManager.isInCombat(player);
+                    pvpManager.isInCombat(
+                            player
+                    );
         }
 
         boolean inCombat =
-                ownCombat || managerCombat;
+                ownCombat ||
+                        managerCombat;
 
         if (!inCombat) {
             return;
         }
 
-        long ownRemaining =
+        long remaining =
                 combatManager.getRemainingSeconds(
-                        player.getUniqueId()
+                        uuid
                 );
 
         long minimum =
@@ -117,16 +156,39 @@ public final class CombatLogListener implements Listener {
                         )
                 );
 
+        /*
+         * Only apply minimum-remaining to our own timer.
+         * PvPManager-only combat does not have our timer.
+         */
         if (ownCombat &&
-                ownRemaining < minimum) {
+                remaining < minimum) {
             return;
         }
 
-        punish(player);
+        /*
+         * Snapshot FIRST.
+         */
+        if (!journalManager.createSnapshot(
+                player
+        )) {
+            return;
+        }
 
-        combatManager.remove(
-                player.getUniqueId()
+        /*
+         * Process the logout directly.
+         *
+         * No player.kill command.
+         * No fake death.
+         */
+        journalManager.processCombatLogout(
+                player
         );
+
+        punish(
+                player
+        );
+
+        combatManager.remove(uuid);
     }
 
     private void punish(
@@ -136,14 +198,17 @@ public final class CombatLogListener implements Listener {
                 player.getName();
 
         String uuid =
-                player.getUniqueId().toString();
+                player.getUniqueId()
+                        .toString();
 
         List<String> commands =
-                plugin.getConfig().getStringList(
-                        "pvp.combat-log.commands"
-                );
+                plugin.getConfig()
+                        .getStringList(
+                                "pvp.combat-log.commands"
+                        );
 
         for (String command : commands) {
+
             if (command == null ||
                     command.trim().isEmpty()) {
                 continue;
@@ -170,6 +235,7 @@ public final class CombatLogListener implements Listener {
                 "pvp.combat-log.broadcast",
                 true
         )) {
+
             String message =
                     plugin.getConfig().getString(
                             "pvp.combat-log.broadcast-message",
@@ -191,6 +257,7 @@ public final class CombatLogListener implements Listener {
                 "pvp.combat-log.log",
                 false
         )) {
+
             plugin.getLogger().warning(
                     playerName +
                             " combat-logged."
