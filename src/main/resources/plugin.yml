@@ -1,37 +1,32 @@
 name: CombatKeepInventory
-version: 1.1.0
+version: 1.1.0-SNAPSHOT-build2
 main: com.votri.combatkeepinv.CombatKeepInventory
-
 api-version: '1.21'
 
-author: VoTri
-description: >
-  Combat-aware inventory management with combat tagging,
-  PvP control, bypass support, WorldGuard integration,
-  and optional PvPManager integration.
+author: ThanhNhan-thanhnhan0928_VoTriMC
+description: Advanced combat and inventory death management plugin.
 
 softdepend:
   - WorldGuard
-  - PvPManager
 
 commands:
+
   cki:
-    description: Main CombatKeepInventory command
+    description: CombatKeepInventory main command
     usage: /cki <reload|info|pvp>
     aliases:
       - combatkeepinventory
-      - combatkeepinv
 
 permissions:
 
   combatkeepinventory.admin:
-    description: Allows administration commands such as reload and info
+    description: Allows administrative CombatKeepInventory commands
     default: op
 
   combatkeepinventory.bypass:
-    description: Completely bypasses CombatKeepInventory death and combat handling
-    default: op
+    description: Prevents CombatKeepInventory from affecting the player
+    default: false
 
   combatkeepinventory.pvp:
-    description: Allows changing the global PvP state with /cki pvp
+    description: Allows the player to toggle global PvP
     default: op
