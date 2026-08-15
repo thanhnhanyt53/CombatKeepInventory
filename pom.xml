@@ -10,7 +10,7 @@
 
     <groupId>com.votri</groupId>
     <artifactId>CombatKeepInventory</artifactId>
-    <version>1.1.0-SNAPSHOT-build1</version>
+    <version>1.1.0-SNAPSHOT-build2</version>
 
     <packaging>jar</packaging>
 
@@ -53,12 +53,6 @@
             without requiring their Maven artifacts at build time.
         -->
 
-        <!--
-            PvPManager is intentionally NOT declared here.
-
-            PvPManagerHook detects and accesses PvPManager
-            through Bukkit Plugin + Java Reflection at runtime.
-        -->
 
     </dependencies>
 
