@@ -532,38 +532,6 @@ public void onEnable() {
             );
 }
 
-    private String detectPlatform() {
-
-        String name =
-                Bukkit.getName();
-
-        if (name == null) {
-            return "unknown";
-        }
-
-        String lower =
-                name.toLowerCase(
-                        Locale.ROOT
-                );
-
-        if (lower.contains("purpur")) {
-            return "purpur";
-        }
-
-        if (lower.contains("paper")) {
-            return "paper";
-        }
-
-        if (lower.contains("spigot")) {
-            return "spigot";
-        }
-
-        if (lower.contains("bukkit")) {
-            return "bukkit";
-        }
-
-        return "unknown";
-    }
 
     private boolean checkPlatform() {
 
