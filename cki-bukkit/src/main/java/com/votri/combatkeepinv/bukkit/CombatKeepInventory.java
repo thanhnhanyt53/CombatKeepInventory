@@ -1,4 +1,4 @@
-package com.votri.combatkeepinv;
+package com.votri.combatkeepinv.bukkit;
 
 import com.votri.combatkeepinv.command.CombatCommand;
 import com.votri.combatkeepinv.combat.CombatManager;
