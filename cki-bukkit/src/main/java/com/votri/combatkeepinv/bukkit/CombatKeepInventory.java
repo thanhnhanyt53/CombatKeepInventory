@@ -206,38 +206,57 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
     }
 
+    
     private void initializeComponents() {
 
-        long durationMillis =
-                getCombatDurationSeconds()
-                        * 1000L;
+    long durationMillis =
+            getCombatDurationSeconds()
+                    * 1000L;
 
-        if (combatManager == null) {
+    if (combatManager == null) {
 
-            combatManager =
-                    new CombatManager(
-                            durationMillis
-                    );
+        combatManager =
+                new CombatManager(
+                        durationMillis
+                );
 
-        } else {
+    } else {
 
-            combatManager.setDurationMillis(
-                    durationMillis
-            );
-        }
+        /*
+         * Keep the existing CombatManager instance.
+         *
+         * CombatListener and CombatService both reference it.
+         */
+        combatManager.setDurationMillis(
+                durationMillis
+        );
+    }
 
-        if (worldGuardHook == null) {
+    /*
+     * Create the Bukkit implementation of the core
+     * CombatService contract exactly once.
+     */
+    if (combatService == null) {
 
-            worldGuardHook =
-                    new WorldGuardHook(this);
-        }
-
-        pvpEnabled =
-                getConfig().getBoolean(
-                        "pvp.enabled",
-                        true
+        combatService =
+                new BukkitCombatService(
+                        this,
+                        combatManager
                 );
     }
+
+    if (worldGuardHook == null) {
+
+        worldGuardHook =
+                new WorldGuardHook(this);
+    }
+
+    pvpEnabled =
+            getConfig().getBoolean(
+                    "pvp.enabled",
+                    true
+            );
+}
 
     private void registerApi() {
 
