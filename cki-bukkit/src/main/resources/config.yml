@@ -1,0 +1,219 @@
+# ============================================================
+# CombatKeepInventory
+# ============================================================
+
+config-version: 3
+
+
+# ============================================================
+# Platform
+# ============================================================
+
+platform:
+
+  # Automatically detect the current Bukkit implementation.
+  #
+  # Supported:
+  #   auto
+  #   bukkit
+  #   spigot
+  #   paper
+  #   purpur
+  mode: auto
+
+  # If true, the configured platform must match the detected
+  # runtime platform.
+  strict: false
+
+
+# ============================================================
+# Combat
+# ============================================================
+
+combat:
+
+  # Duration of combat state in seconds.
+  duration-seconds: 10
+
+  # Whether PvP combat tracking is enabled.
+  enabled: true
+
+
+# ============================================================
+# PvP
+# ============================================================
+
+pvp:
+
+  # Whether CKI handles player-vs-player deaths.
+  enabled: true
+
+  # If true, a player who dies while in combat is treated
+  # according to the combat state.
+  use-combat-state: true
+
+
+# ============================================================
+# WorldGuard
+# ============================================================
+
+worldguard:
+
+  # Enable the WorldGuard integration.
+  #
+  # If false:
+  #   WorldGuardHook is not used.
+  #
+  # If true:
+  #   CKI attempts to hook into WorldGuard when available.
+  enabled: true
+
+  # Whether WorldGuard is required for CKI to enable.
+  #
+  # false:
+  #   CKI continues working without WorldGuard.
+  #
+  # true:
+  #   CKI disables the WorldGuard-dependent functionality
+  #   when WorldGuard is unavailable.
+  required: false
+
+  # Enable region-based PvP checks.
+  #
+  # When enabled, CKI asks WorldGuard whether PvP is allowed
+  # at the combat/death location.
+  region-pvp-check: true
+
+  # If true, a player killed in a region where PvP is denied
+  # is treated as a PvE death.
+  #
+  # Example:
+  #
+  # PvP disabled region
+  #      ↓
+  # Player killed by another player
+  #      ↓
+  # Treated as PvE
+  #      ↓
+  # Inventory is kept
+  deny-pvp-means-pve: true
+
+  # WorldGuard region flags that CKI should respect.
+  #
+  # Currently supported:
+  #   - pvp
+  #
+  respected-flags:
+    - pvp
+
+
+# ============================================================
+# Worlds
+# ============================================================
+
+worlds:
+
+  # Enable world filtering.
+  enabled: true
+
+  # Worlds where CKI is disabled completely.
+  disabled-worlds: []
+
+
+# ============================================================
+# Inventory
+# ============================================================
+
+inventory:
+
+  # Whether armor is included when inventory is dropped.
+  drop-armor: true
+
+  # Whether off-hand item is included when inventory is dropped.
+  drop-offhand: true
+
+  # Whether the player's normal inventory is included.
+  drop-main-inventory: true
+
+  # Whether XP should also be dropped on PvP death.
+  drop-experience: true
+
+
+# ============================================================
+# Death
+# ============================================================
+
+death:
+
+  # Keep inventory for deaths that are classified as PvE.
+  keep-on-pve: true
+
+  # Do not keep inventory for deaths classified as PvP.
+  keep-on-pvp: false
+
+
+# ============================================================
+# Combat Logout
+# ============================================================
+
+combat-logout:
+
+  # Enable combat logout detection on the Bukkit backend.
+  enabled: true
+
+  # Whether the Velocity module is required for cluster-level
+  # disconnect detection.
+  require-proxy: false
+
+
+# ============================================================
+# Velocity
+# ============================================================
+
+velocity:
+
+  # Enable integration with CKI-Velocity.
+  enabled: true
+
+  # Whether Bukkit should publish combat-state information
+  # to the proxy.
+  publish-combat-state: true
+
+  # Whether the proxy may request the current combat state.
+  allow-state-query: true
+
+
+# ============================================================
+# Listener
+# ============================================================
+
+listener:
+
+  # Event priority used for combat/death processing.
+  #
+  # LOWEST
+  # LOW
+  # NORMAL
+  # HIGH
+  # HIGHEST
+  # MONITOR
+  priority: HIGHEST
+
+
+# ============================================================
+# Debug
+# ============================================================
+
+debug:
+
+  # Enable debug logging.
+  enabled: false
+
+  # Log WorldGuard decisions.
+  worldguard: false
+
+  # Log combat state changes.
+  combat: false
+
+  # Log Velocity communication.
+  velocity: false
