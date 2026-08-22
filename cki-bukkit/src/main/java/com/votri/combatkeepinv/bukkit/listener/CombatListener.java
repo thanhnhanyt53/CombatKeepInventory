@@ -1,8 +1,12 @@
 package com.votri.combatkeepinv.bukkit.listener;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
-import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
+import com.votri.combatkeepinv.core.api.CombatResult;
+import com.votri.combatkeepinv.core.api.CombatService;
+import com.votri.combatkeepinv.core.api.DeathContext;
+import com.votri.combatkeepinv.core.api.DeathResult;
+
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -14,101 +18,83 @@ import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
 
-public final class CombatListener
-        implements Listener {
+/**
+ * Bukkit event adapter for CombatKeepInventory.
+ *
+ * <p>This class is intentionally thin:
+ * Bukkit events are translated into core API operations,
+ * while CombatService decides combat/death policy.</p>
+ */
+public final class CombatListener implements Listener {
 
     private static final String BYPASS_PERMISSION =
             "combatkeepinventory.bypass";
 
     private final CombatKeepInventory plugin;
-    private final CombatManager combatManager;
+    private final CombatService combatService;
     private final WorldGuardHook worldGuard;
 
     public CombatListener(
             CombatKeepInventory plugin,
-            CombatManager combatManager,
+            CombatService combatService,
             WorldGuardHook worldGuard
     ) {
-
         this.plugin = plugin;
-        this.combatManager = combatManager;
+        this.combatService = combatService;
         this.worldGuard = worldGuard;
     }
 
+    /**
+     * Handles Bukkit damage events and creates combat tags
+     * for valid player-versus-player damage.
+     */
     public void onEntityDamageByEntity(
             EntityDamageByEntityEvent event
     ) {
-
-        if (!(event.getEntity()
-                instanceof Player victim)) {
-
+        if (!(event.getEntity() instanceof Player victim)) {
             return;
         }
 
-        if (plugin.isWorldDisabled(
-                victim.getWorld()
-        )) {
-
+        if (plugin.isWorldDisabled(victim.getWorld())) {
             return;
         }
+
+        if (victim.hasPermission(BYPASS_PERMISSION)) {
+            return;
+        }
+
+        Entity damager = event.getDamager();
+
+        Player attacker = getAttackingPlayer(damager);
 
         /*
-         * Complete CKI bypass.
-         */
-        if (victim.hasPermission(
-                BYPASS_PERMISSION
-        )) {
-
-            return;
-        }
-
-        Entity damager =
-                event.getDamager();
-
-        Player attacker =
-                getAttackingPlayer(
-                        damager
-                );
-
-        /*
-         * ========================================================
+         * =========================================================
          * PLAYER VS PLAYER
-         * ========================================================
+         * =========================================================
          */
-
         if (attacker != null) {
 
             if (attacker.equals(victim)) {
                 return;
             }
 
-            /*
-             * Bypass attacker does not create CKI combat.
-             */
-            if (attacker.hasPermission(
-                    BYPASS_PERMISSION
-            )) {
-
+            if (attacker.hasPermission(BYPASS_PERMISSION)) {
                 return;
             }
 
-            if (plugin.isWorldDisabled(
-                    attacker.getWorld()
-            )) {
-
+            if (plugin.isWorldDisabled(attacker.getWorld())) {
                 return;
             }
 
             /*
-             * Global PvP state.
+             * Global PvP switch.
              */
-            if (!plugin.isPvPEnabled()) {
+            if (!combatService.isPvPEnabled()) {
 
                 if (plugin.getConfig().getBoolean(
                         "pvp.block-pvp-when-disabled",
                         true
                 )) {
-
                     event.setCancelled(true);
                 }
 
@@ -116,7 +102,7 @@ public final class CombatListener
             }
 
             /*
-             * WorldGuard.
+             * WorldGuard protection.
              */
             if (!worldGuard.canPvP(
                     attacker,
@@ -127,36 +113,39 @@ public final class CombatListener
                         "worldguard.block-pvp-when-denied",
                         false
                 )) {
-
                     event.setCancelled(true);
                 }
 
                 return;
             }
 
-            /*
-             * Tag both players.
-             */
-            combatManager.tag(
-                    attacker.getUniqueId(),
-                    victim.getUniqueId()
-            );
+            CombatResult result =
+                    combatService.startCombat(
+                            attacker.getUniqueId(),
+                            victim.getUniqueId()
+                    );
 
-            debugCombat(
-                    attacker,
-                    victim,
-                    "PLAYER_VS_PLAYER"
-            );
+            if (result == CombatResult.SUCCESS) {
+
+                debugCombat(
+                        attacker,
+                        victim,
+                        "PLAYER_VS_PLAYER"
+                );
+            }
 
             return;
         }
 
         /*
-         * ========================================================
+         * =========================================================
          * NON-PLAYER DAMAGE
-         * ========================================================
+         * =========================================================
+         *
+         * This part exists only for the optional combat-tagging
+         * feature. It does NOT make the eventual death a PvP
+         * death.
          */
-
         boolean playerVsPlayerOnly =
                 plugin.getConfig().getBoolean(
                         "combat.player-vs-player-only",
@@ -167,27 +156,34 @@ public final class CombatListener
             return;
         }
 
-        combatManager.tag(
-                victim.getUniqueId()
-        );
-
+        /*
+         * There is no CombatService operation for creating a
+         * non-player combat tag in the current core contract.
+         *
+         * Therefore this optional legacy behavior is deliberately
+         * not mapped into the new PvP death policy.
+         */
         debugNonPlayerCombat(
                 victim,
                 damager
         );
     }
 
+    /**
+     * Handles player deaths.
+     *
+     * <p>The Bukkit death cause is converted to DeathContext,
+     * then CombatService decides KEEP/DROP.</p>
+     */
     public void onPlayerDeath(
             PlayerDeathEvent event
     ) {
-
         Player victim =
                 event.getEntity();
 
         if (plugin.isWorldDisabled(
                 victim.getWorld()
         )) {
-
             return;
         }
 
@@ -195,136 +191,189 @@ public final class CombatListener
                 victim.getUniqueId();
 
         /*
-         * ========================================================
+         * =========================================================
          * BYPASS
-         * ========================================================
+         * =========================================================
          */
-
         if (victim.hasPermission(
                 BYPASS_PERMISSION
         )) {
 
-            handleKeepInventory(
-                    event
-            );
+            handleKeepInventory(event);
 
-            combatManager.remove(uuid);
+            combatService.endCombat(uuid);
 
             return;
         }
 
         /*
-         * ========================================================
-         * DIRECT PLAYER KILL
-         * ========================================================
+         * Determine the actual death context.
+         *
+         * Do NOT use combatService.isInCombat() here.
+         *
+         * Being combat-tagged does not mean that every subsequent
+         * death is a PvP death.
          */
+        DeathContext context =
+                resolveDeathContext(victim);
 
-        Player killer =
-                victim.getKiller();
-
-        if (killer != null) {
-
-            boolean shouldDrop =
-                    plugin.getConfig().getBoolean(
-                            "death.player-kill-drops",
-                            true
-                    );
-
-            if (shouldDrop) {
-
-                handleDropInventory(
-                        event
+        DeathResult result =
+                combatService.evaluateDeath(
+                        uuid,
+                        context
                 );
 
-            } else {
-
-                handleKeepInventory(
-                        event
-                );
-            }
-
-            combatManager.remove(uuid);
-
-            return;
-        }
+        applyDeathResult(
+                event,
+                result
+        );
 
         /*
-         * ========================================================
-         * COMBAT DEATH
-         * ========================================================
+         * A death always ends the local combat state.
          */
+        combatService.endCombat(uuid);
 
-        boolean inCombat =
-                combatManager.isInCombat(
-                        uuid
-                );
-
-        if (inCombat) {
-
-            boolean shouldDrop =
-                    plugin.getConfig().getBoolean(
-                            "death.combat-death-drops",
-                            false
-                    );
-
-            if (shouldDrop) {
-
-                handleDropInventory(
-                        event
-                );
-
-            } else {
-
-                handleKeepInventory(
-                        event
-                );
-            }
-
-            combatManager.remove(uuid);
-
-            return;
-        }
-
-        /*
-         * ========================================================
-         * NORMAL DEATH
-         * ========================================================
-         */
-
-        boolean shouldKeep =
-                plugin.getConfig().getBoolean(
-                        "death.non-combat-death-keeps-inventory",
-                        true
-                );
-
-        if (shouldKeep) {
-
-            handleKeepInventory(
-                    event
-            );
-
-        } else {
-
-            handleDropInventory(
-                    event
-            );
-        }
-
-        combatManager.remove(uuid);
+        debugDeath(
+                victim,
+                context,
+                result
+        );
     }
 
-    private void handleDropInventory(
-            PlayerDeathEvent event
+    /**
+     * Converts the Bukkit death cause into the core DeathContext.
+     */
+    private DeathContext resolveDeathContext(
+            Player player
     ) {
+        /*
+         * Bukkit's killer is the strongest indication of a
+         * direct player kill.
+         */
+        if (player.getKiller() != null) {
+            return DeathContext.PLAYER;
+        }
 
+        if (player.getLastDamageCause() == null) {
+            return DeathContext.UNKNOWN;
+        }
+
+        EntityDamageByEntityEvent damage =
+                player.getLastDamageCause()
+                        instanceof EntityDamageByEntityEvent
+                        ? (EntityDamageByEntityEvent)
+                        player.getLastDamageCause()
+                        : null;
+
+        if (damage == null) {
+            return resolveNonEntityDeathContext();
+        }
+
+        Entity damager =
+                damage.getDamager();
+
+        /*
+         * Direct player attack.
+         */
+        if (damager instanceof Player) {
+            return DeathContext.PLAYER;
+        }
+
+        /*
+         * Projectile.
+         *
+         * A player-owned projectile is a PvP death.
+         * A mob-owned projectile is PvE.
+         */
+        if (damager instanceof Projectile projectile) {
+
+            ProjectileSource source =
+                    projectile.getShooter();
+
+            if (source instanceof Player) {
+                return DeathContext.PROJECTILE;
+            }
+
+            return DeathContext.MOB;
+        }
+
+        /*
+         * Any other entity damage is treated as PvE.
+         */
+        return DeathContext.MOB;
+    }
+
+    /**
+     * Resolves non-entity environmental death causes.
+     */
+    private DeathContext resolveNonEntityDeathContext() {
+
+        /*
+         * We intentionally use Bukkit's last damage event type
+         * through the PlayerDeathEvent-compatible damage cause
+         * when available.
+         *
+         * If there is no entity attacker, this is environmental
+         * unless Bukkit gives us a more specific void indication.
+         */
+        return DeathContext.ENVIRONMENT;
+    }
+
+    /**
+     * Applies the platform-neutral death decision to Bukkit.
+     */
+    private void applyDeathResult(
+            PlayerDeathEvent event,
+            DeathResult result
+    ) {
+        if (result == null) {
+            handleKeepInventory(event);
+            return;
+        }
+
+        if (result.shouldDropInventory()) {
+
+            handleDropInventory(
+                    event,
+                    result.shouldKeepExperience()
+            );
+
+            return;
+        }
+
+        if (result.shouldKeepInventory()) {
+
+            handleKeepInventory(
+                    event,
+                    result.shouldKeepExperience()
+            );
+
+            return;
+        }
+
+        /*
+         * DEFAULT is resolved conservatively to KEEP.
+         *
+         * This prevents accidental item loss if a future
+         * implementation returns DEFAULT.
+         */
+        handleKeepInventory(
+                event,
+                result.shouldKeepExperience()
+        );
+    }
+
+    /**
+     * Forces inventory drops even when the server gamerule
+     * keepInventory is enabled.
+     */
+    private void handleDropInventory(
+            PlayerDeathEvent event,
+            boolean keepExperience
+    ) {
         Player player =
                 event.getEntity();
 
-        /*
-         * Important when server gamerule:
-         *
-         * keepInventory = true
-         */
         event.getDrops().clear();
 
         addDrops(
@@ -347,15 +396,46 @@ public final class CombatListener
 
         event.setKeepInventory(false);
 
-        boolean keepExperience =
+        if (keepExperience) {
+
+            event.setKeepLevel(true);
+
+        } else {
+
+            event.setKeepLevel(false);
+            event.setDroppedExp(0);
+        }
+    }
+
+    /**
+     * Keeps the player's inventory.
+     */
+    private void handleKeepInventory(
+            PlayerDeathEvent event
+    ) {
+        handleKeepInventory(
+                event,
                 plugin.getConfig().getBoolean(
                         "death.keep-experience",
                         true
-                );
+                )
+        );
+    }
+
+    /**
+     * Keeps inventory and optionally experience.
+     */
+    private void handleKeepInventory(
+            PlayerDeathEvent event,
+            boolean keepExperience
+    ) {
+        event.setKeepInventory(true);
+        event.getDrops().clear();
 
         if (keepExperience) {
 
             event.setKeepLevel(true);
+            event.setDroppedExp(0);
 
         } else {
 
@@ -368,7 +448,6 @@ public final class CombatListener
             PlayerDeathEvent event,
             ItemStack[] items
     ) {
-
         if (items == null) {
             return;
         }
@@ -389,36 +468,9 @@ public final class CombatListener
         }
     }
 
-    private void handleKeepInventory(
-            PlayerDeathEvent event
-    ) {
-
-        event.setKeepInventory(true);
-
-        event.getDrops().clear();
-
-        boolean keepExperience =
-                plugin.getConfig().getBoolean(
-                        "death.keep-experience",
-                        true
-                );
-
-        if (keepExperience) {
-
-            event.setKeepLevel(true);
-            event.setDroppedExp(0);
-
-        } else {
-
-            event.setKeepLevel(false);
-            event.setDroppedExp(0);
-        }
-    }
-
     private Player getAttackingPlayer(
             Entity damager
     ) {
-
         if (damager instanceof Player player) {
             return player;
         }
@@ -441,12 +493,10 @@ public final class CombatListener
             Player victim,
             String reason
     ) {
-
         if (!plugin.getConfig().getBoolean(
                 "debug.combat",
                 false
         )) {
-
             return;
         }
 
@@ -465,21 +515,42 @@ public final class CombatListener
             Player victim,
             Entity damager
     ) {
-
         if (!plugin.getConfig().getBoolean(
                 "debug.combat",
                 false
         )) {
-
             return;
         }
 
         plugin.getLogger().info(
-                "Combat tagged: "
+                "Non-player damage observed: "
                         + victim.getName()
                         + " <- "
                         + damager.getType()
-                        + " [NON_PLAYER_DAMAGE]"
+        );
+    }
+
+    private void debugDeath(
+            Player player,
+            DeathContext context,
+            DeathResult result
+    ) {
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
+            return;
+        }
+
+        plugin.getLogger().info(
+                "Death evaluated: "
+                        + player.getName()
+                        + " context="
+                        + context
+                        + " policy="
+                        + result.getInventoryPolicy()
+                        + " combatDeath="
+                        + result.wasCombatDeath()
         );
     }
 }
