@@ -40,22 +40,6 @@ public final class PlatformInfo {
         return implementationName;
     }
 
-    public boolean supports(PlatformCapability capability) {
-    return switch (capability) {
-        case COMBAT,
-             DEATH,
-             INVENTORY,
-             DAMAGE_ATTRIBUTION ->
-                isBukkitFamily();
-
-        case PROXY_SESSION,
-             SERVER_SWITCH,
-             CLUSTER_EXIT,
-             PLUGIN_MESSAGING ->
-                isProxy();
-    };
-}
-
     public String getImplementationVersion() {
         return implementationVersion;
     }
@@ -82,6 +66,24 @@ public final class PlatformInfo {
 
     public boolean isProxy() {
         return type.isProxy();
+    }
+
+    public boolean supports(PlatformCapability capability) {
+        Objects.requireNonNull(capability, "capability");
+
+        return switch (capability) {
+            case COMBAT,
+                 DEATH,
+                 INVENTORY,
+                 DAMAGE_ATTRIBUTION ->
+                    isBukkitFamily();
+
+            case PROXY_SESSION,
+                 SERVER_SWITCH,
+                 CLUSTER_EXIT,
+                 PLUGIN_MESSAGING ->
+                    isProxy();
+        };
     }
 
     @Override
