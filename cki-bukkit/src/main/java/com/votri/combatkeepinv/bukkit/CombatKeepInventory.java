@@ -6,7 +6,8 @@ import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
 import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
-import com.votri.combatkeepinv.core.api.PlatformInfo;
+import com.votri.combatkeepinv.core.platform.PlatformInfo;
+
 import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
