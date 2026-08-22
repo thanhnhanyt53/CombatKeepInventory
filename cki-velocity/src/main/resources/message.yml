@@ -1,0 +1,22 @@
+prefix: "&8[&cCombatKeepInventory&8] &r"
+
+general:
+  enabled: "&aCombatKeepInventory đang hoạt động."
+  disabled: "&cCombatKeepInventory đang tắt."
+
+command:
+  no-permission: "&cBạn không có quyền sử dụng lệnh này."
+  player-only: "&cLệnh này chỉ dành cho người chơi."
+  reload: "&aCombatKeepInventory đã được reload."
+
+combat:
+  tagged: "&cBạn đang trong combat!"
+  expired: "&aBạn đã thoát combat."
+  remaining: "&cBạn còn &f%seconds% &cgiây combat."
+
+proxy:
+  server-not-found: "&cKhông thể tìm thấy server đích."
+  connection-failed: "&cKhông thể kết nối tới server."
+
+platform:
+  detected: "&7Platform: &f%platform%"
