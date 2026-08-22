@@ -1,6 +1,6 @@
 package com.votri.combatkeepinv.bukkit.hook;
 
-import com.votri.combatkeepinv.CombatKeepInventory;
+import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
