@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- Parent                                                 -->
+    <!-- ====================================================== -->
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- ====================================================== -->
+    <!-- Project                                                 -->
+    <!-- ====================================================== -->
+
+    <artifactId>cki-velocity</artifactId>
+
+    <name>CombatKeepInventory Velocity</name>
+    <description>
+        Velocity proxy implementation of CombatKeepInventory.
+    </description>
+
+    <!-- ====================================================== -->
+    <!-- Dependencies                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+        <!-- CKI Core -->
+
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Velocity API -->
+
+        <dependency>
+            <groupId>com.velocitypowered</groupId>
+            <artifactId>velocity-api</artifactId>
+            <version>${velocity.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ====================================================== -->
+    <!-- Build                                                   -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <finalName>CombatKeepInventory-Velocity</finalName>
+
+        <plugins>
+
+            <!-- Java -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <!-- Resources -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+            </plugin>
+
+            <!-- Shade Core into Velocity -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <relocations>
+                            </relocations>
+
+                            <transformers>
+
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Implementation-Title>CombatKeepInventory Velocity</Implementation-Title>
+                                        <Implementation-Version>${project.version}</Implementation-Version>
+                                    </manifestEntries>
+                                </transformer>
+
+                            </transformers>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
