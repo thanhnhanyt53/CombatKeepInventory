@@ -7,6 +7,8 @@ import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
 import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
+import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
+import com.votri.combatkeepinv.core.api.CombatService;
 
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -36,6 +38,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private static final int CONFIG_VERSION = 2;
 
     private CombatManager combatManager;
+    private BukkitCombatService combatService;
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
 
