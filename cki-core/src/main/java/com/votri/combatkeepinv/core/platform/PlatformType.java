@@ -38,6 +38,11 @@ public enum PlatformType {
      */
     UNKNOWN;
 
+    /**
+     * Returns whether this platform belongs to the Bukkit server family.
+     *
+     * @return true for Bukkit, Spigot, Paper, and Purpur
+     */
     public boolean isBukkitFamily() {
         return switch (this) {
             case BUKKIT, SPIGOT, PAPER, PURPUR -> true;
@@ -45,10 +50,20 @@ public enum PlatformType {
         };
     }
 
+    /**
+     * Returns whether this platform is a proxy platform.
+     *
+     * @return true for Velocity
+     */
     public boolean isProxy() {
         return this == VELOCITY;
     }
 
+    /**
+     * Returns whether this platform represents a backend game server.
+     *
+     * @return true for Bukkit-family platforms
+     */
     public boolean isServer() {
         return isBukkitFamily();
     }
