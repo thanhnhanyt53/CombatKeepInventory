@@ -1,0 +1,11 @@
+config-version: 1
+
+enabled: true
+
+platform:
+  strict: false
+
+messages:
+  enabled: true
+
+debug: false
