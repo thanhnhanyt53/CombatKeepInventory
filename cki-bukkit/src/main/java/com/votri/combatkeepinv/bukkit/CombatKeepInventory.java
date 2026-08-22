@@ -33,7 +33,7 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.1.0-SNAPSHOT-build2";
+            "1.1.0-SNAPSHOT-build3";
 
     private static final int CONFIG_VERSION = 2;
 
