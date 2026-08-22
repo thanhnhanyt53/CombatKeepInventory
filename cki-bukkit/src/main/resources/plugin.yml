@@ -1,0 +1,29 @@
+name: CombatKeepInventory
+version: ${plugin.version}
+main: com.votri.combatkeepinv.bukkit.CombatKeepInventory
+api-version: '1.21'
+
+description: >
+  Keeps inventory on PvE death while removing inventory
+  on PvP death.
+
+author: Vô Tri
+
+softdepend:
+  - WorldGuard
+
+commands:
+  cki:
+    description: CombatKeepInventory administration command.
+    usage: /cki <reload|status|pvp>
+    permission: combatkeepinventory.admin
+
+permissions:
+
+  combatkeepinventory.admin:
+    description: Allows access to CombatKeepInventory administration commands.
+    default: op
+
+  combatkeepinventory.pvp:
+    description: Allows toggling PvP handling.
+    default: op
