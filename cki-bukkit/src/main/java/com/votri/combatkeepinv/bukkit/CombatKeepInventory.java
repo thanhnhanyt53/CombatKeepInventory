@@ -39,6 +39,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private CombatManager combatManager;
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
+    private PlatformInfo platformInfo;
 
     private File messageFile;
     private FileConfiguration messages;
