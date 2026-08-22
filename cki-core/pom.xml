@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- Parent                                                 -->
+    <!-- ====================================================== -->
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- ====================================================== -->
+    <!-- Project                                                 -->
+    <!-- ====================================================== -->
+
+    <artifactId>cki-core</artifactId>
+
+    <name>CombatKeepInventory Core</name>
+    <description>
+        Platform independent API and services for CombatKeepInventory.
+    </description>
+
+    <!-- ====================================================== -->
+    <!-- Dependencies                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+        <!--
+         * Core MUST NOT depend on Bukkit.
+         * Core MUST NOT depend on Velocity.
+         *
+         * This module contains only:
+         * - API
+         * - contracts
+         * - platform abstractions
+         * - shared services
+         * - shared models
+         -->
+
+    </dependencies>
+
+    <!-- ====================================================== -->
+    <!-- Build                                                   -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
