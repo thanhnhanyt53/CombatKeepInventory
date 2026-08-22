@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.votri</groupId>
+    <artifactId>combatkeepinventory-parent</artifactId>
+    <version>1.1.0-SNAPSHOT</version>
+
+    <packaging>pom</packaging>
+
+    <name>CombatKeepInventory</name>
+    <description>
+        CombatKeepInventory multi-platform Minecraft plugin.
+    </description>
+
+    <modules>
+        <module>cki-core</module>
+        <module>cki-bukkit</module>
+        <module>cki-velocity</module>
+    </modules>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <java.version>21</java.version>
+
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+
+        <paper.version>26.1.2-R0.1-SNAPSHOT</paper.version>
+        <velocity.version>3.4.0-SNAPSHOT>
+
+        <plugin.version>1.1.0-SNAPSHOT-build2</plugin.version>
+    </properties>
+
+    <repositories>
+
+        <!-- Paper -->
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+
+        <!-- Velocity -->
+        <repository>
+            <id>velocity-releases</id>
+            <url>https://nexus.velocitypowered.com/repository/maven-public/</url>
+        </repository>
+
+    </repositories>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.14.0</version>
+                    <configuration>
+                        <release>${maven.compiler.release}</release>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
+                    <configuration>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.3</version>
+                </plugin>
+
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>
