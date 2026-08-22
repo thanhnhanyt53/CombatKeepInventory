@@ -8,51 +8,34 @@ on:
 
   pull_request:
 
-  workflow_dispatch:
-
 jobs:
   build:
-    name: Build Maven Project
     runs-on: ubuntu-latest
 
     steps:
 
-      # ==========================================================
-      # Checkout
-      # ==========================================================
-
       - name: Checkout
         uses: actions/checkout@v4
-
-
-      # ==========================================================
-      # Java 21
-      # ==========================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
+          cache: maven
 
-
-      # ==========================================================
-      # Environment information
-      # ==========================================================
-
-      - name: Show Java and Maven version
+      - name: Verify Java
         run: |
           echo "=== JAVA ==="
           java -version
-
-          echo
-          echo "=== MAVEN ==="
+          echo ""
+          javac -version
+          echo ""
           mvn -version
 
-
-      # ==========================================================
-      # Project structure
-      # ==========================================================
+      - name: Clean Paper Maven cache
+        run: |
+          rm -rf ~/.m2/repository/io/papermc/paper
 
       - name: Show project structure
         run: |
@@ -60,21 +43,16 @@ jobs:
           pwd
           ls -la
 
-          echo
+          echo ""
           echo "=== MODULES ==="
           find . -maxdepth 2 -type d | sort
-
-
-      # ==========================================================
-      # Java sources
-      # ==========================================================
 
       - name: Show Java sources
         run: |
           echo "=== JAVA SOURCES ==="
 
           for module in cki-core cki-bukkit cki-velocity; do
-            echo
+            echo ""
             echo "[$module]"
 
             if [ -d "$module/src/main/java" ]; then
@@ -87,57 +65,15 @@ jobs:
             fi
           done
 
-
-      # ==========================================================
-      # Maven configuration
-      # ==========================================================
-
-      - name: Show Maven POM files
+      - name: Validate Maven
         run: |
-          echo "=== POM FILES ==="
-          find . \
-            -type f \
-            -name "pom.xml" \
-            -print \
-            | sort
-
-
-      # ==========================================================
-      # Remove potentially corrupted Maven artifacts
-      # ==========================================================
-
-      - name: Clean Paper API cache
-        run: |
-          echo "Removing cached Paper API..."
-
-          rm -rf ~/.m2/repository/io/papermc/paper/paper-api
-
-          echo "Paper API cache removed."
-
-
-      # ==========================================================
-      # Validate Maven project
-      # ==========================================================
-
-      - name: Validate Maven project
-        run: |
-          mvn -B validate
-
-
-      # ==========================================================
-      # Clean build
-      # ==========================================================
+          mvn -B -U validate
 
       - name: Build
         run: |
-          mvn -B clean package -U
+          mvn -B -U clean package
 
-
-      # ==========================================================
-      # Verify generated JARs
-      # ==========================================================
-
-      - name: Verify artifacts
+      - name: Show artifacts
         run: |
           echo "=== BUILD ARTIFACTS ==="
 
@@ -147,45 +83,17 @@ jobs:
             -print \
             | sort
 
-          echo
-          echo "=== ARTIFACT DETAILS ==="
-
-          for jar in $(find . -type f -path '*/target/*.jar'); do
-            echo
-            echo "----------------------------------------"
-            echo "$jar"
-            echo "----------------------------------------"
-            ls -lh "$jar"
-
-            echo
-            echo "JAR test:"
-            jar tf "$jar" > /dev/null
-
-            echo "OK"
-          done
-
-
-      # ==========================================================
-      # Upload Bukkit artifact
-      # ==========================================================
-
       - name: Upload Bukkit artifact
         uses: actions/upload-artifact@v4
         with:
           name: CombatKeepInventory-Bukkit
-          path: |
-            cki-bukkit/target/*.jar
+          path: cki-bukkit/target/*.jar
           if-no-files-found: error
-
-
-      # ==========================================================
-      # Upload Velocity artifact
-      # ==========================================================
 
       - name: Upload Velocity artifact
         uses: actions/upload-artifact@v4
         with:
           name: CombatKeepInventory-Velocity
-          path: |
-            cki-velocity/target/*.jar
+          path: cki-velocity/target/*.jar
           if-no-files-found: error
+            
