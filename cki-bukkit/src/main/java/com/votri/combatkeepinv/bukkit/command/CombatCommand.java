@@ -1,6 +1,6 @@
 package com.votri.combatkeepinv.bukkit.command;
 
-import com.votri.combatkeepinv.CombatKeepInventory;
+import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
