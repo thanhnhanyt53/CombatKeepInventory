@@ -5,53 +5,74 @@ on:
     branches:
       - main
       - master
-
   pull_request:
-    branches:
-      - main
-      - master
-
-  workflow_dispatch:
 
 jobs:
   build:
-    name: Build Plugin
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 25
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '21'
           cache: maven
 
-      - name: Verify project structure
+      - name: Show project structure
         run: |
           echo "=== ROOT ==="
           pwd
           ls -la
 
-          echo "=== JAVA SOURCES ==="
-          find src/main/java -type f -name "*.java" -print
+          echo "=== MODULES ==="
+          find . -maxdepth 2 -type d | sort
 
-          echo "=== RESOURCES ==="
-          find src/main/resources -type f -maxdepth 2 -print
-
-      - name: Build with Maven
-        run: mvn -B clean package
-
-      - name: List build output
+      - name: Show Java sources
         run: |
-          echo "=== TARGET ==="
-          ls -lah target/
+          echo "=== JAVA SOURCES ==="
 
-      - name: Upload plugin JAR
+          for module in cki-core cki-bukkit cki-velocity; do
+            echo ""
+            echo "[$module]"
+
+            if [ -d "$module/src/main/java" ]; then
+              find "$module/src/main/java" \
+                -type f \
+                -name "*.java" \
+                | sort
+            else
+              echo "No Java source directory"
+            fi
+          done
+
+      - name: Validate Maven project
+        run: |
+          mvn -B validate
+
+      - name: Build
+        run: |
+          mvn -B clean package
+
+      - name: Show artifacts
+        run: |
+          echo "=== BUILD ARTIFACTS ==="
+
+          find . \
+            -path '*/target/*.jar' \
+            -type f \
+            -print \
+            | sort
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CombatKeepInventory-v1.0.0
-          path: target/*.jar
+          name: CombatKeepInventory
+          path: |
+            cki-bukkit/target/*.jar
+            cki-velocity/target/*.jar
           if-no-files-found: error
