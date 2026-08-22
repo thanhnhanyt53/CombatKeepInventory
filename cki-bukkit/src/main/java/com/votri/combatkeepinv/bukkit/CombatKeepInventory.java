@@ -1,11 +1,11 @@
 package com.votri.combatkeepinv.bukkit;
 
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
-import com.votri.combatkeepinv.command.CombatCommand;
-import com.votri.combatkeepinv.combat.CombatManager;
-import com.votri.combatkeepinv.core.platform.PlatformInfo;
-import com.votri.combatkeepinv.hook.WorldGuardHook;
-import com.votri.combatkeepinv.listener.CombatListener;
+import com.votri.combatkeepinv.bukkit.command.CombatCommand;
+import com.votri.combatkeepinv.bukkit.combat.CombatManager;
+import com.votri.combatkeepinv.bukkit.core.platform.PlatformInfo;
+import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
+import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
