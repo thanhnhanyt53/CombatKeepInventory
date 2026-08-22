@@ -142,6 +142,10 @@ public void onEnable() {
         );
     }
 
+    private void detectPlatformInfo() {
+    platformInfo = BukkitPlatformDetector.detect();
+}
+
     private void initializeComponents() {
 
         long durationMillis =
