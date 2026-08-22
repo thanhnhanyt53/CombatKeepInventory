@@ -667,4 +667,4 @@ public final class CombatKeepInventory extends JavaPlugin {
                         + " disabled."
         );
     }
-    }
+}
