@@ -514,7 +514,8 @@ public void onEnable() {
 
     private void loadPlatform() {
 
-    detectPlatformInfo();
+    detectedPlatform =
+        getDetectedPlatformName();
 
     selectedPlatform =
             getConfig().getString(
