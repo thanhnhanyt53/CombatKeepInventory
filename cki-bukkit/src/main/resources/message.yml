@@ -1,0 +1,25 @@
+prefix: "&8[&cCombatKeepInventory&8] &r"
+
+combat:
+  tagged: "&cBạn đang trong combat!"
+  tagged-other: "&cBạn đã bị đưa vào combat bởi &f%player%&c."
+  expired: "&aBạn đã thoát combat."
+  remaining: "&cBạn còn &f%seconds% &cgiây combat."
+
+death:
+  keep-inventory: "&aBạn đã giữ lại inventory."
+  drop-inventory: "&cBạn đã mất inventory."
+
+pvp:
+  enabled: "&aPvP đã được bật."
+  disabled: "&cPvP đã được tắt."
+
+command:
+  no-permission: "&cBạn không có quyền sử dụng lệnh này."
+  player-only: "&cLệnh này chỉ dành cho người chơi."
+  unknown: "&cLệnh không hợp lệ."
+  reload: "&aCombatKeepInventory đã được reload."
+  status: "&7PvP: %pvp% &8| &7Combat: %combat%"
+
+platform:
+  detected: "&7Platform: &f%platform%"
