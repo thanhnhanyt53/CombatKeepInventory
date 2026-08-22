@@ -1,8 +1,8 @@
 package com.votri.combatkeepinv.bukkit.listener;
 
-import com.votri.combatkeepinv.CombatKeepInventory;
-import com.votri.combatkeepinv.combat.CombatManager;
-import com.votri.combatkeepinv.hook.WorldGuardHook;
+import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
+import com.votri.combatkeepinv.bukkit.combat.CombatManager;
+import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
