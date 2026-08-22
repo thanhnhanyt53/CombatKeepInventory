@@ -559,7 +559,7 @@ public void onEnable() {
         }
 
         return selectedPlatform.equals(
-                detectedPlatform
+                getDetectedPlatformName()
         );
     }
 
