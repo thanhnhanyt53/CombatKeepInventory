@@ -1,0 +1,10 @@
+- name: Check Paper API versions
+  run: |
+    curl -I \
+      https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/
+
+    echo ""
+    echo "=== Paper API metadata ==="
+
+    curl -L \
+      https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml
