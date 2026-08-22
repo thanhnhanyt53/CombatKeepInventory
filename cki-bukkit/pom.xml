@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>cki-bukkit</artifactId>
+
+    <name>CombatKeepInventory Bukkit</name>
+
+    <packaging>jar</packaging>
+
+    <dependencies>
+
+        <!-- ====================================================== -->
+        <!-- CKI Core                                                -->
+        <!-- ====================================================== -->
+
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- ====================================================== -->
+        <!-- Paper                                                   -->
+        <!-- ====================================================== -->
+
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ====================================================== -->
+        <!-- WorldEdit                                               -->
+        <!-- ====================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>worldedit-bukkit</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ====================================================== -->
+        <!-- WorldGuard                                              -->
+        <!-- ====================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <finalName>CombatKeepInventory-Bukkit</finalName>
+
+        <plugins>
+
+            <!-- ================================================== -->
+            <!-- Compiler                                           -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- Shade Core into Bukkit                             -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <minimizeJar>false</minimizeJar>
+
+                            <artifactSet>
+
+                                <includes>
+                                    <include>com.votri:cki-core</include>
+                                </includes>
+
+                            </artifactSet>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
