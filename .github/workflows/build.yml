@@ -1,0 +1,86 @@
+name: Build CombatKeepInventory
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  pull_request:
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Show project structure
+        run: |
+          echo "=== ROOT ==="
+          pwd
+          ls -la
+
+          echo "=== MODULES ==="
+          find . -maxdepth 2 -type d | sort
+
+      - name: Show Java sources
+        run: |
+          echo "=== JAVA SOURCES ==="
+
+          for module in cki-core cki-bukkit cki-velocity; do
+            echo ""
+            echo "[$module]"
+
+            if [ -d "$module/src/main/java" ]; then
+              find "$module/src/main/java" \
+                -type f \
+                -name "*.java" \
+                | sort
+            else
+              echo "No Java source directory"
+            fi
+          done
+
+      - name: Clear Paper cache
+        run: |
+          rm -rf "$HOME/.m2/repository/io/papermc/paper/paper-api"
+          rm -rf "$HOME/.m2/repository/io/papermc/paper"
+
+      - name: Validate Maven project
+        run: |
+          mvn -B validate
+
+      - name: Build
+        run: |
+          mvn -B clean package -U
+
+      - name: Show artifacts
+        run: |
+          echo "=== BUILD ARTIFACTS ==="
+
+          find . \
+            -path '*/target/*.jar' \
+            -type f \
+            -print \
+            | sort
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CombatKeepInventory
+          path: |
+            cki-bukkit/target/*.jar
+            cki-velocity/target/*.jar
+          if-no-files-found: error
