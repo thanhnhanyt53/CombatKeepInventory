@@ -122,30 +122,42 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     @Override
-    public void onDisable() {
+public void onDisable() {
 
-        /*
-         * Unregister the public API first.
-         */
-        unregisterApi();
+    try {
 
-        /*
-         * Clear combat state.
-         */
-        if (combatManager != null) {
-            combatManager.clear();
+        CombatKeepInventoryAPI api =
+                CombatKeepInventoryAPI.get();
+
+        if (api instanceof
+                com.votri.combatkeepinv.bukkit.api
+                        .BukkitCombatKeepInventoryAPI) {
+
+            CombatKeepInventoryAPI.Provider.unregister(
+                    api
+            );
         }
 
-        combatListener = null;
-        worldGuardHook = null;
-        combatManager = null;
-
-        getLogger().info(
-                "CombatKeepInventory "
-                        + PLUGIN_VERSION
-                        + " disabled."
-        );
+    } catch (IllegalStateException ignored) {
+        // API was not registered.
     }
+
+    if (combatManager != null) {
+        combatManager.clear();
+    }
+
+    combatListener = null;
+    worldGuardHook = null;
+    combatService = null;
+    combatManager = null;
+
+    getLogger().info(
+            "CombatKeepInventory "
+                    + PLUGIN_VERSION
+                    + " disabled."
+    );
+}
+        
 
     private void detectPlatform() {
 
