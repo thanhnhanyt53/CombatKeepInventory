@@ -510,26 +510,27 @@ public void onEnable() {
         );
     }
 
+    
+
     private void loadPlatform() {
 
-        detectedPlatform =
-                detectPlatform();
+    detectPlatformInfo();
 
-        selectedPlatform =
-                getConfig().getString(
-                        "platform.mode",
-                        "auto"
-                );
+    selectedPlatform =
+            getConfig().getString(
+                    "platform.mode",
+                    "auto"
+            );
 
-        if (selectedPlatform == null) {
-            selectedPlatform = "auto";
-        }
-
-        selectedPlatform =
-                selectedPlatform.toLowerCase(
-                        Locale.ROOT
-                );
+    if (selectedPlatform == null) {
+        selectedPlatform = "auto";
     }
+
+    selectedPlatform =
+            selectedPlatform.toLowerCase(
+                    Locale.ROOT
+            );
+}
 
     private String detectPlatform() {
 
