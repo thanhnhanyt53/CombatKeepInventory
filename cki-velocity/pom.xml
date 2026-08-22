@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>combatkeepinventory-parent</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>cki-velocity</artifactId>
+
+    <name>CombatKeepInventory Velocity</name>
+    <description>
+        Velocity proxy implementation of CombatKeepInventory.
+    </description>
+
+    <packaging>jar</packaging>
+
+    <dependencies>
+
+        <!-- CKI Core -->
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Velocity API -->
+        <dependency>
+            <groupId>com.velocitypowered</groupId>
+            <artifactId>velocity-api</artifactId>
+            <version>${velocity.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <finalName>CombatKeepInventory-Velocity</finalName>
+
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
