@@ -1,10 +1,9 @@
 package com.votri.combatkeepinv.core.api;
 
+import com.votri.combatkeepinv.core.platform.PlatformInfo;
+
 public interface CombatKeepInventoryAPI {
 
-    /**
-     * Returns the currently registered CKI API instance.
-     */
     static CombatKeepInventoryAPI get() {
         return Provider.get();
     }
@@ -14,6 +13,8 @@ public interface CombatKeepInventoryAPI {
     boolean isEnabled();
 
     String getVersion();
+
+    PlatformInfo getPlatform();
 
     final class Provider {
 
