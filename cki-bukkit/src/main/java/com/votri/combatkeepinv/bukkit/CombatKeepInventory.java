@@ -532,6 +532,16 @@ public void onEnable() {
             );
 }
 
+    private String getDetectedPlatformName() {
+    return switch (platformInfo.getType()) {
+        case BUKKIT -> "bukkit";
+        case SPIGOT -> "spigot";
+        case PAPER -> "paper";
+        case PURPUR -> "purpur";
+        case VELOCITY -> "velocity";
+        case UNKNOWN -> "unknown";
+    };
+}
 
     private boolean checkPlatform() {
 
