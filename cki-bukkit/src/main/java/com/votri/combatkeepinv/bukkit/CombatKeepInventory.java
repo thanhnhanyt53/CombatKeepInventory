@@ -59,22 +59,42 @@ public final class CombatKeepInventory extends JavaPlugin {
         saveDefaultMessages();
         loadMessages();
 
-        loadPlatform();
+        @Override
+public void onEnable() {
 
-        if (!checkPlatform()) {
+    migrateConfigIfRequired();
 
-            getLogger().severe(
-                    "Selected platform does not match the detected server platform."
-            );
+    saveDefaultConfig();
 
-            getServer()
-                    .getPluginManager()
-                    .disablePlugin(this);
+    saveDefaultMessages();
+    loadMessages();
 
-            return;
-        }
+    detectPlatform();
 
-        initializeComponents();
+    loadPlatformSelection();
+
+    if (!checkPlatform()) {
+
+        getLogger().severe(
+                "Selected platform does not match the detected server platform."
+        );
+
+        getServer()
+                .getPluginManager()
+                .disablePlugin(this);
+
+        return;
+    }
+
+    initializeComponents();
+
+    registerApi();
+
+    registerCombatListeners();
+    registerCommand();
+
+    logStartupInformation();
+}
         registerCombatListeners();
         registerCommand();
 
