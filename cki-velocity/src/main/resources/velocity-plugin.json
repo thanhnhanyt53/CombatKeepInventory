@@ -1,0 +1,10 @@
+{
+  "id": "combatkeepinventory",
+  "name": "CombatKeepInventory",
+  "version": "1.1.0-SNAPSHOT-build2",
+  "description": "Proxy session and cluster-exit tracking for CombatKeepInventory.",
+  "authors": [
+    "Vô Tri"
+  ],
+  "main": "com.votri.combatkeepinv.velocity.CombatKeepInventoryVelocity"
+}
