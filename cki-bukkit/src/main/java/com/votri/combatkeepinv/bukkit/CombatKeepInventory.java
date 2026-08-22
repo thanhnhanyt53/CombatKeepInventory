@@ -307,72 +307,72 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private void registerCombatListeners() {
 
-        if (combatListener != null) {
-            return;
-        }
-
-        combatListener =
-                new CombatListener(
-                        this,
-                        combatManager,
-                        worldGuardHook
-                );
-
-        EventPriority priority =
-                getListenerPriority();
-
-        EventExecutor damageExecutor =
-                (registeredListener, event) -> {
-
-                    if (event instanceof
-                            EntityDamageByEntityEvent damage) {
-
-                        combatListener
-                                .onEntityDamageByEntity(
-                                        damage
-                                );
-                    }
-                };
-
-        EventExecutor deathExecutor =
-                (registeredListener, event) -> {
-
-                    if (event instanceof
-                            PlayerDeathEvent death) {
-
-                        combatListener
-                                .onPlayerDeath(
-                                        death
-                                );
-                    }
-                };
-
-        getServer()
-                .getPluginManager()
-                .registerEvent(
-                        EntityDamageByEntityEvent.class,
-                        combatListener,
-                        priority,
-                        damageExecutor,
-                        this
-                );
-
-        getServer()
-                .getPluginManager()
-                .registerEvent(
-                        PlayerDeathEvent.class,
-                        combatListener,
-                        priority,
-                        deathExecutor,
-                        this
-                );
-
-        getLogger().info(
-                "Combat listeners registered at "
-                        + priority
-                        + " priority."
-        );
+    if (combatListener != null) {
+        return;
     }
+
+    combatListener =
+            new CombatListener(
+                    this,
+                    combatService,
+                    worldGuardHook
+            );
+
+    EventPriority priority =
+            getListenerPriority();
+
+    EventExecutor damageExecutor =
+            (registeredListener, event) -> {
+
+                if (event
+                        instanceof EntityDamageByEntityEvent damage) {
+
+                    combatListener
+                            .onEntityDamageByEntity(
+                                    damage
+                            );
+                }
+            };
+
+    EventExecutor deathExecutor =
+            (registeredListener, event) -> {
+
+                if (event
+                        instanceof PlayerDeathEvent death) {
+
+                    combatListener
+                            .onPlayerDeath(
+                                    death
+                            );
+                }
+            };
+
+    getServer()
+            .getPluginManager()
+            .registerEvent(
+                    EntityDamageByEntityEvent.class,
+                    combatListener,
+                    priority,
+                    damageExecutor,
+                    this
+            );
+
+    getServer()
+            .getPluginManager()
+            .registerEvent(
+                    PlayerDeathEvent.class,
+                    combatListener,
+                    priority,
+                    deathExecutor,
+                    this
+            );
+
+    getLogger().info(
+            "Combat listeners registered at "
+                    + priority
+                    + " priority."
+    );
+}
 
     public EventPriority getListenerPriority() {
 
