@@ -5,16 +5,30 @@ on:
     branches:
       - main
       - master
+
   pull_request:
 
 jobs:
+
   build:
+
+    name: Build Maven Project
+
     runs-on: ubuntu-latest
 
     steps:
 
+      # ==========================================================
+      # Checkout
+      # ==========================================================
+
       - name: Checkout
         uses: actions/checkout@v4
+
+
+      # ==========================================================
+      # Java
+      # ==========================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -23,43 +37,213 @@ jobs:
           java-version: '21'
           cache: maven
 
+
+      # ==========================================================
+      # Environment information
+      # ==========================================================
+
+      - name: Show Java and Maven versions
+        run: |
+          echo "=== JAVA ==="
+          java -version
+
+          echo ""
+          echo "=== MAVEN ==="
+          mvn -version
+
+
+      # ==========================================================
+      # Project structure
+      # ==========================================================
+
       - name: Show project structure
         run: |
           echo "=== ROOT ==="
           pwd
           ls -la
 
+          echo ""
           echo "=== MODULES ==="
-          find . -maxdepth 2 -type d | sort
+
+          find . \
+            -maxdepth 2 \
+            -type d \
+            | sort
+
+
+      # ==========================================================
+      # Java sources
+      # ==========================================================
 
       - name: Show Java sources
         run: |
+
           echo "=== JAVA SOURCES ==="
 
           for module in cki-core cki-bukkit cki-velocity; do
+
             echo ""
             echo "[$module]"
 
             if [ -d "$module/src/main/java" ]; then
+
               find "$module/src/main/java" \
                 -type f \
                 -name "*.java" \
                 | sort
+
             else
+
               echo "No Java source directory"
+
             fi
+
           done
+
+
+      # ==========================================================
+      # POM inspection
+      # ==========================================================
+
+      - name: Show Maven POM files
+        run: |
+
+          echo "=== POM FILES ==="
+
+          find . \
+            -name "pom.xml" \
+            -type f \
+            | sort
+
+
+      # ==========================================================
+      # Repository configuration
+      # ==========================================================
+
+      - name: Check Maven repository configuration
+        run: |
+
+          echo "=== REPOSITORY REFERENCES ==="
+
+          grep -Rni \
+            -E "repo.papermc.io|nexus.velocitypowered.com|velocity-releases|<repositories>|<mirrors>" \
+            --include="pom.xml" \
+            --include="settings.xml" \
+            . \
+            || true
+
+
+      # ==========================================================
+      # Maven model validation
+      # ==========================================================
 
       - name: Validate Maven project
         run: |
           mvn -B validate
 
+
+      # ==========================================================
+      # Show dependency tree
+      # ==========================================================
+
+      - name: Show Bukkit dependency tree
+        run: |
+          mvn -B \
+            -pl cki-bukkit \
+            -am \
+            dependency:tree
+
+
+      # ==========================================================
+      # Build
+      # ==========================================================
+
       - name: Build
         run: |
-          mvn -B clean package
+          mvn -B -U clean package
+
+
+      # ==========================================================
+      # Verify shaded Core
+      # ==========================================================
+
+      - name: Verify Core is embedded
+        run: |
+
+          echo "=== BUKKIT CORE CHECK ==="
+
+          BUKKIT_JAR=$(find cki-bukkit/target \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "*original*.jar" \
+            | head -n 1)
+
+          if [ -z "$BUKKIT_JAR" ]; then
+            echo "ERROR: Bukkit JAR not found."
+            exit 1
+          fi
+
+          echo "Bukkit JAR:"
+          echo "$BUKKIT_JAR"
+
+          echo ""
+
+          if jar tf "$BUKKIT_JAR" \
+            | grep -q \
+            "com/votri/combatkeepinv/core/api/CombatKeepInventoryAPI.class"; then
+
+            echo "Core API found inside Bukkit JAR."
+
+          else
+
+            echo "ERROR: Core API is NOT embedded in Bukkit JAR."
+            exit 1
+
+          fi
+
+
+          echo ""
+          echo "=== VELOCITY CORE CHECK ==="
+
+          VELOCITY_JAR=$(find cki-velocity/target \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "*original*.jar" \
+            | head -n 1)
+
+          if [ -z "$VELOCITY_JAR" ]; then
+            echo "ERROR: Velocity JAR not found."
+            exit 1
+          fi
+
+          echo "Velocity JAR:"
+          echo "$VELOCITY_JAR"
+
+          echo ""
+
+          if jar tf "$VELOCITY_JAR" \
+            | grep -q \
+            "com/votri/combatkeepinv/core/api/CombatKeepInventoryAPI.class"; then
+
+            echo "Core API found inside Velocity JAR."
+
+          else
+
+            echo "ERROR: Core API is NOT embedded in Velocity JAR."
+            exit 1
+
+          fi
+
+
+      # ==========================================================
+      # Show artifacts
+      # ==========================================================
 
       - name: Show artifacts
         run: |
+
           echo "=== BUILD ARTIFACTS ==="
 
           find . \
@@ -68,11 +252,20 @@ jobs:
             -print \
             | sort
 
+
+      # ==========================================================
+      # Upload Bukkit + Velocity only
+      # ==========================================================
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+
         with:
           name: CombatKeepInventory
+
           path: |
             cki-bukkit/target/*.jar
             cki-velocity/target/*.jar
+
           if-no-files-found: error
+
