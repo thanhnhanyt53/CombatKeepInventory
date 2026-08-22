@@ -373,6 +373,17 @@ public final class CombatKeepInventory extends JavaPlugin {
                     + " priority."
     );
 }
+    
+    public CombatService getCombatService() {
+
+    if (combatService == null) {
+        throw new IllegalStateException(
+                "Combat service has not been initialized."
+        );
+    }
+
+    return combatService;
+}
 
     public EventPriority getListenerPriority() {
 
