@@ -1,7 +1,6 @@
 package com.votri.combatkeepinv.bukkit.api;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
-import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
@@ -16,11 +15,10 @@ public final class BukkitCombatKeepInventoryAPI
     public BukkitCombatKeepInventoryAPI(
             CombatKeepInventory plugin
     ) {
-        this.plugin =
-                Objects.requireNonNull(
-                        plugin,
-                        "plugin"
-                );
+        this.plugin = Objects.requireNonNull(
+                plugin,
+                "plugin"
+        );
     }
 
     @Override
