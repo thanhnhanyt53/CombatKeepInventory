@@ -4,6 +4,12 @@ import com.votri.combatkeepinv.core.platform.PlatformInfo;
 
 public interface CombatKeepInventoryAPI {
 
+    /**
+     * Returns the currently registered CKI API instance.
+     *
+     * @return registered API instance
+     * @throws IllegalStateException if the API has not been initialized
+     */
     static CombatKeepInventoryAPI get() {
         return Provider.get();
     }
@@ -14,6 +20,11 @@ public interface CombatKeepInventoryAPI {
 
     String getVersion();
 
+    /**
+     * Returns information about the platform on which CKI is running.
+     *
+     * @return immutable platform information
+     */
     PlatformInfo getPlatform();
 
     final class Provider {
