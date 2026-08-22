@@ -8,12 +8,23 @@ import org.bukkit.Server;
 
 import java.util.Locale;
 
+/**
+ * Detects the Bukkit-family server implementation at runtime.
+ *
+ * <p>This class is only used by the Bukkit module.
+ * No Bukkit-specific classes are exposed through the core API.</p>
+ */
 public final class BukkitPlatformDetector {
 
     private BukkitPlatformDetector() {
         throw new UnsupportedOperationException("Utility class");
     }
 
+    /**
+     * Detects the currently running Bukkit-family platform.
+     *
+     * @return immutable platform information
+     */
     public static PlatformInfo detect() {
         Server server = Bukkit.getServer();
 
@@ -41,36 +52,37 @@ public final class BukkitPlatformDetector {
         String normalizedVersion = version.toLowerCase(Locale.ROOT);
 
         /*
-         * Check forks first.
-         *
-         * Purpur is based on Paper, so Paper must not be detected first.
+         * Purpur must be checked before Paper because Purpur
+         * is a Paper-based server implementation.
          */
-        if (normalizedName.contains("purpur")
-                || normalizedVersion.contains("purpur")) {
+        if (containsAny(normalizedName, "purpur")
+                || containsAny(normalizedVersion, "purpur")) {
             return PlatformType.PURPUR;
         }
 
-        if (normalizedName.contains("paper")
-                || normalizedVersion.contains("paper")) {
+        if (containsAny(normalizedName, "paper")
+                || containsAny(normalizedVersion, "paper")) {
             return PlatformType.PAPER;
         }
 
-        if (normalizedName.contains("spigot")
-                || normalizedVersion.contains("spigot")) {
+        if (containsAny(normalizedName, "spigot")
+                || containsAny(normalizedVersion, "spigot")) {
             return PlatformType.SPIGOT;
         }
 
-        if (normalizedName.contains("bukkit")
-                || normalizedVersion.contains("bukkit")) {
+        if (containsAny(normalizedName, "bukkit")
+                || containsAny(normalizedVersion, "bukkit")) {
             return PlatformType.BUKKIT;
         }
 
-        /*
-         * Some Bukkit-compatible implementations may not expose a
-         * recognizable implementation name. In that case we retain
-         * UNKNOWN instead of making an unsafe assumption.
-         */
         return PlatformType.UNKNOWN;
+    }
+
+    private static boolean containsAny(
+            String value,
+            String target
+    ) {
+        return value.contains(target);
     }
 
     private static String safe(String value) {
