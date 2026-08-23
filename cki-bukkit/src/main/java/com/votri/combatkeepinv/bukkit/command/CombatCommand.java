@@ -2,6 +2,7 @@ package com.votri.combatkeepinv.bukkit.command;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
+
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,6 +13,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Administrative commands for CombatKeepInventory.
+ *
+ * <p>PvP on/off commands intentionally do not exist here.
+ * PvP control belongs to another plugin.</p>
+ */
 public final class CombatCommand
         implements CommandExecutor, TabCompleter {
 
@@ -54,13 +61,8 @@ public final class CombatCommand
             case "info" ->
                     info(sender);
 
-            case "pvp" ->
-                    pvp(sender, args);
-
             default -> {
-
                 sendUsage(sender);
-
                 yield true;
             }
         };
@@ -174,23 +176,10 @@ public final class CombatCommand
                 )
         );
 
-        sender.sendMessage(
-                plugin.getMessage(
-                        "command.info.pvp",
-                        "&7PvP: &f%pvp%"
-                ).replace(
-                        "%pvp%",
-                        plugin.isPvPEnabled()
-                                ? plugin.getMessage(
-                                "status.enabled",
-                                "&aENABLED"
-                        )
-                                : plugin.getMessage(
-                                "status.disabled",
-                                "&cDISABLED"
-                        )
-                )
-        );
+        /*
+         * PvP is intentionally not displayed as an internal
+         * CKI toggle anymore.
+         */
 
         sender.sendMessage(
                 plugin.getMessage(
@@ -215,97 +204,6 @@ public final class CombatCommand
         return true;
     }
 
-    private boolean pvp(
-            CommandSender sender,
-            String[] args
-    ) {
-
-        if (!plugin.canTogglePvP(sender)) {
-
-            sendNoPermission(sender);
-
-            return true;
-        }
-
-        if (args.length < 2) {
-
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "command.pvp.usage",
-                            "&eUsage: /cki pvp <on|off>"
-                    )
-            );
-
-            return true;
-        }
-
-        String value =
-                args[1].toLowerCase(
-                        Locale.ROOT
-                );
-
-        if ("on".equals(value)) {
-
-            if (plugin.isPvPEnabled()) {
-
-                sender.sendMessage(
-                        plugin.getMessage(
-                                "command.pvp.already-enabled",
-                                "&ePvP is already enabled."
-                        )
-                );
-
-                return true;
-            }
-
-            plugin.setPvPEnabled(true);
-
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "command.pvp.enabled",
-                            "&aPvP has been enabled."
-                    )
-            );
-
-            return true;
-        }
-
-        if ("off".equals(value)) {
-
-            if (!plugin.isPvPEnabled()) {
-
-                sender.sendMessage(
-                        plugin.getMessage(
-                                "command.pvp.already-disabled",
-                                "&ePvP is already disabled."
-                        )
-                );
-
-                return true;
-            }
-
-            plugin.setPvPEnabled(false);
-
-            sender.sendMessage(
-                    plugin.getMessage(
-                            "command.pvp.disabled",
-                            "&cPvP has been disabled."
-                    )
-            );
-
-            return true;
-        }
-
-        sender.sendMessage(
-                plugin.getMessage(
-                        "command.pvp.usage",
-                        "&eUsage: /cki pvp <on|off>"
-                )
-        );
-
-        return true;
-    }
-
     private void sendUsage(
             CommandSender sender
     ) {
@@ -318,22 +216,21 @@ public final class CombatCommand
         if (lines.isEmpty()) {
 
             sender.sendMessage(
-                    plugin.color("&e/cki reload")
+                    plugin.color(
+                            "&e/cki reload"
+                    )
             );
 
             sender.sendMessage(
-                    plugin.color("&e/cki info")
-            );
-
-            sender.sendMessage(
-                    plugin.color("&e/cki pvp <on|off>")
+                    plugin.color(
+                            "&e/cki info"
+                    )
             );
 
             return;
         }
 
         for (String line : lines) {
-
             sender.sendMessage(line);
         }
     }
@@ -360,44 +257,18 @@ public final class CombatCommand
 
         if (args.length == 1) {
 
-            List<String> result =
-                    new ArrayList<>();
-
-            if (sender.hasPermission(
+            if (!sender.hasPermission(
                     ADMIN_PERMISSION
             )) {
-
-                result.add("reload");
-                result.add("info");
-            }
-
-            if (plugin.canTogglePvP(sender)) {
-
-                result.add("pvp");
-            }
-
-            return filter(
-                    result,
-                    args[0]
-            );
-        }
-
-        if (args.length == 2
-                && "pvp".equalsIgnoreCase(
-                args[0]
-        )) {
-
-            if (!plugin.canTogglePvP(sender)) {
-
                 return Collections.emptyList();
             }
 
             return filter(
                     List.of(
-                            "on",
-                            "off"
+                            "reload",
+                            "info"
                     ),
-                    args[1]
+                    args[0]
             );
         }
 
@@ -416,8 +287,8 @@ public final class CombatCommand
                 input == null
                         ? ""
                         : input.toLowerCase(
-                        Locale.ROOT
-                );
+                                Locale.ROOT
+                        );
 
         for (String value : values) {
 
