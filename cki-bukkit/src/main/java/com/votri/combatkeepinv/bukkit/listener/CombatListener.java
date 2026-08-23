@@ -59,100 +59,134 @@ public final class CombatListener implements Listener {
      * CombatTag. Every valid hit refreshes both players.</p>
      */
     public void onEntityDamageByEntity(
-            EntityDamageByEntityEvent event
-    ) {
+        EntityDamageByEntityEvent event
+) {
 
-        /*
-         * A cancelled damage event is not a successful PvP hit.
-         */
-        if (event.isCancelled()) {
-            return;
-        }
+    /*
+     * Cancelled damage is not a real successful hit.
+     */
+    if (event.isCancelled()) {
+        return;
+    }
 
-        if (!(event.getEntity() instanceof Player victim)) {
-            return;
-        }
+    /*
+     * Victim must be a player.
+     */
+    if (!(event.getEntity() instanceof Player victim)) {
+        return;
+    }
 
-        if (victim.hasPermission(
-                BYPASS_PERMISSION
-        )) {
-            return;
-        }
+    /*
+     * Resolve the actual player who caused the damage.
+     *
+     * This supports:
+     *
+     * Player -> Player
+     * Player -> Projectile -> Player
+     */
+    Player attacker =
+            resolveAttackingPlayer(
+                    event.getDamager()
+            );
 
-        if (plugin.isWorldDisabled(
-                victim.getWorld()
-        )) {
-            return;
-        }
+    if (attacker == null) {
+        return;
+    }
 
-        Player attacker =
-                resolveAttackingPlayer(
-                        event.getDamager()
+    /*
+     * Prevent self damage from creating CombatTag.
+     */
+    if (attacker.equals(victim)) {
+        return;
+    }
+
+    /*
+     * Optional bypass.
+     */
+    if (attacker.hasPermission(
+            "combatkeepinventory.bypass"
+    ) || victim.hasPermission(
+            "combatkeepinventory.bypass"
+    )) {
+        return;
+    }
+
+    /*
+     * CKI disabled world check.
+     */
+    if (plugin.isWorldDisabled(
+            attacker.getWorld()
+    ) || plugin.isWorldDisabled(
+            victim.getWorld()
+    )) {
+        return;
+    }
+
+    /*
+     * ==========================================================
+     * COMBAT TAG
+     * ==========================================================
+     *
+     * IMPORTANT:
+     *
+     * CombatTag is created BEFORE any optional integration.
+     *
+     * CKI does NOT depend on:
+     *
+     * - PvPManager
+     * - WorldGuard
+     * - BukkitCombatService PvP toggle
+     * - /cki pvp
+     *
+     * A valid Player -> Player damage event is sufficient.
+     */
+    combatManager.tag(
+            attacker.getUniqueId(),
+            victim.getUniqueId()
+    );
+
+    /*
+     * Immediate verification.
+     *
+     * This is intentionally executed directly after tag().
+     * If debug is enabled and this says false, the problem is
+     * inside CombatManager itself.
+     */
+    if (plugin.getConfig().getBoolean(
+            "debug.combat",
+            false
+    )) {
+
+        boolean attackerTagged =
+                combatManager.isInCombat(
+                        attacker.getUniqueId()
                 );
 
-        if (attacker == null) {
-            return;
-        }
+        boolean victimTagged =
+                combatManager.isInCombat(
+                        victim.getUniqueId()
+                );
 
-        if (attacker.equals(victim)) {
-            return;
-        }
-
-        if (attacker.hasPermission(
-                BYPASS_PERMISSION
-        )) {
-            return;
-        }
-
-        if (plugin.isWorldDisabled(
-                attacker.getWorld()
-        )) {
-            return;
-        }
-
-        /*
-         * WorldGuard is the only optional PvP permission
-         * check performed by CKI itself.
-         */
-        if (worldGuard != null
-                && !worldGuard.canPvP(
-                        attacker,
-                        victim
-                )) {
-
-            if (plugin.getConfig().getBoolean(
-                    "worldguard.block-pvp-when-denied",
-                    false
-            )) {
-                event.setCancelled(true);
-            }
-
-            return;
-        }
-
-        /*
-         * ======================================================
-         * COMBAT TAG
-         * ======================================================
-         *
-         * IMPORTANT:
-         *
-         * Do NOT call combatService.isPvPEnabled().
-         * CKI no longer owns a PvP on/off switch.
-         *
-         * The successful Bukkit damage event itself proves
-         * that a player hit another player.
-         */
-        combatManager.tag(
-                attacker.getUniqueId(),
-                victim.getUniqueId()
-        );
-
-        debugCombat(
-                attacker,
-                victim
+        plugin.getLogger().info(
+                "[CombatTag] "
+                        + attacker.getName()
+                        + " -> "
+                        + victim.getName()
+                        + " | attacker="
+                        + attackerTagged
+                        + " | victim="
+                        + victimTagged
+                        + " | remaining="
+                        + combatManager.getRemainingSeconds(
+                                victim.getUniqueId()
+                        )
+                        + "s"
         );
     }
+}
+
+        
+
 
     /**
      * Handles player death.
