@@ -225,7 +225,6 @@ public void onDisable() {
         );
     }
 
-    
     private void initializeComponents() {
 
     long durationMillis =
@@ -241,19 +240,13 @@ public void onDisable() {
 
     } else {
 
-        /*
-         * Keep the existing CombatManager instance.
-         *
-         * CombatListener and CombatService both reference it.
-         */
         combatManager.setDurationMillis(
                 durationMillis
         );
     }
 
     /*
-     * Create the Bukkit implementation of the core
-     * CombatService contract exactly once.
+     * Bukkit implementation of the core CombatService.
      */
     if (combatService == null) {
 
@@ -264,10 +257,30 @@ public void onDisable() {
                 );
     }
 
+    /*
+     * WorldGuard integration.
+     */
     if (worldGuardHook == null) {
 
         worldGuardHook =
-                new WorldGuardHook(this);
+                new WorldGuardHook(
+                        this
+                );
+    }
+
+    /*
+     * PvPManager compatibility detector.
+     */
+    if (pvpManagerHook == null) {
+
+        pvpManagerHook =
+                new PvPManagerHook(
+                        this
+                );
+
+    } else {
+
+        pvpManagerHook.refresh();
     }
 
     pvpEnabled =
@@ -276,6 +289,8 @@ public void onDisable() {
                     true
             );
 }
+    
+        
 
     private void registerApi() {
 
