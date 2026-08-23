@@ -1,219 +1,92 @@
 # ============================================================
 # CombatKeepInventory
+# Configuration
 # ============================================================
 
-config-version: 3
+# Configuration schema version.
+# Do not change manually unless instructed.
+config-version: 2
 
 
 # ============================================================
-# Platform
+# PLATFORM
 # ============================================================
 
 platform:
 
-  # Automatically detect the current Bukkit implementation.
+  # auto | paper | purpur | spigot
   #
-  # Supported:
-  #   auto
-  #   bukkit
-  #   spigot
-  #   paper
-  #   purpur
+  # auto:
+  #   Automatically accepts the detected Bukkit platform.
   mode: auto
 
-  # If true, the configured platform must match the detected
-  # runtime platform.
+  # When true, the configured platform must match
+  # the detected platform.
   strict: false
 
 
 # ============================================================
-# Combat
+# COMBAT
 # ============================================================
 
 combat:
 
-  # Duration of combat state in seconds.
+  # Duration of the Combat Tag in seconds.
+  #
+  # Example:
+  #   10 = player remains tagged for 10 seconds
+  #       after the last valid PvP hit.
   duration-seconds: 10
-
-  # Whether PvP combat tracking is enabled.
-  enabled: true
 
 
 # ============================================================
-# PvP
+# PVP
 # ============================================================
 
 pvp:
 
-  # Whether CKI handles player-vs-player deaths.
+  # Master switch for CKI PvP handling.
   enabled: true
 
-  # If true, a player who dies while in combat is treated
-  # according to the combat state.
-  use-combat-state: true
+  command:
+
+    # If true, /cki pvp requires the permission below.
+    require-permission: true
+
+    permission: combatkeepinventory.pvp
 
 
 # ============================================================
-# WorldGuard
-# ============================================================
-
-worldguard:
-
-  # Enable the WorldGuard integration.
-  #
-  # If false:
-  #   WorldGuardHook is not used.
-  #
-  # If true:
-  #   CKI attempts to hook into WorldGuard when available.
-  enabled: true
-
-  # Whether WorldGuard is required for CKI to enable.
-  #
-  # false:
-  #   CKI continues working without WorldGuard.
-  #
-  # true:
-  #   CKI disables the WorldGuard-dependent functionality
-  #   when WorldGuard is unavailable.
-  required: false
-
-  # Enable region-based PvP checks.
-  #
-  # When enabled, CKI asks WorldGuard whether PvP is allowed
-  # at the combat/death location.
-  region-pvp-check: true
-
-  # If true, a player killed in a region where PvP is denied
-  # is treated as a PvE death.
-  #
-  # Example:
-  #
-  # PvP disabled region
-  #      ↓
-  # Player killed by another player
-  #      ↓
-  # Treated as PvE
-  #      ↓
-  # Inventory is kept
-  deny-pvp-means-pve: true
-
-  # WorldGuard region flags that CKI should respect.
-  #
-  # Currently supported:
-  #   - pvp
-  #
-  respected-flags:
-    - pvp
-
-
-# ============================================================
-# Worlds
+# WORLDS
 # ============================================================
 
 worlds:
 
-  # Enable world filtering.
+  # Enable the disabled-world list.
   enabled: true
 
-  # Worlds where CKI is disabled completely.
-  disabled-worlds: []
-
-
-# ============================================================
-# Inventory
-# ============================================================
-
-inventory:
-
-  # Whether armor is included when inventory is dropped.
-  drop-armor: true
-
-  # Whether off-hand item is included when inventory is dropped.
-  drop-offhand: true
-
-  # Whether the player's normal inventory is included.
-  drop-main-inventory: true
-
-  # Whether XP should also be dropped on PvP death.
-  drop-experience: true
-
-
-# ============================================================
-# Death
-# ============================================================
-
-death:
-
-  # Keep inventory for deaths that are classified as PvE.
-  keep-on-pve: true
-
-  # Do not keep inventory for deaths classified as PvP.
-  keep-on-pvp: false
-
-
-# ============================================================
-# Combat Logout
-# ============================================================
-
-combat-logout:
-
-  # Enable combat logout detection on the Bukkit backend.
-  enabled: true
-
-  # Whether the Velocity module is required for cluster-level
-  # disconnect detection.
-  require-proxy: false
-
-
-# ============================================================
-# Velocity
-# ============================================================
-
-velocity:
-
-  # Enable integration with CKI-Velocity.
-  enabled: true
-
-  # Whether Bukkit should publish combat-state information
-  # to the proxy.
-  publish-combat-state: true
-
-  # Whether the proxy may request the current combat state.
-  allow-state-query: true
-
-
-# ============================================================
-# Listener
-# ============================================================
-
-listener:
-
-  # Event priority used for combat/death processing.
+  # Worlds where CombatKeepInventory is disabled.
   #
-  # LOWEST
-  # LOW
-  # NORMAL
-  # HIGH
-  # HIGHEST
-  # MONITOR
-  priority: HIGHEST
+  # Players in these worlds will not receive CKI combat
+  # handling according to the plugin's world checks.
+  disabled-worlds:
+    - example_world
 
 
 # ============================================================
-# Debug
+# EVENT LISTENER
 # ============================================================
 
-debug:
-
-  # Enable debug logging.
-  enabled: false
-
-  # Log WorldGuard decisions.
-  worldguard: false
-
-  # Log combat state changes.
-  combat: false
-
-  # Log Velocity communication.
-  velocity: false
+# Bukkit event priority used by CombatKeepInventory.
+#
+# Available:
+# LOWEST
+# LOW
+# NORMAL
+# HIGH
+# HIGHEST
+# MONITOR
+#
+# HIGHEST is recommended because CKI needs to observe
+# the final combat/death state after most other plugins.
+listener-priority: HIGHEST
