@@ -1,11 +1,8 @@
 # ============================================================
 # CombatKeepInventory
-# Configuration
 # ============================================================
 
-# Configuration schema version.
-# Do not change manually unless instructed.
-config-version: 2
+config-version: 3
 
 
 # ============================================================
@@ -14,13 +11,10 @@ config-version: 2
 
 platform:
 
-  # auto | paper | purpur | spigot
-  #
-  # auto:
-  #   Automatically accepts the detected Bukkit platform.
+  # auto | bukkit | spigot | paper | purpur
   mode: auto
 
-  # When true, the configured platform must match
+  # When true, the configured platform must exactly match
   # the detected platform.
   strict: false
 
@@ -31,12 +25,16 @@ platform:
 
 combat:
 
-  # Duration of the Combat Tag in seconds.
-  #
-  # Example:
-  #   10 = player remains tagged for 10 seconds
-  #       after the last valid PvP hit.
+  # Enables CombatTag processing.
+  enabled: true
+
+  # CombatTag duration after the latest valid PvP hit.
   duration-seconds: 10
+
+  # Only Player vs Player damage can create CombatTag.
+  #
+  # Keep this true for the intended CKI behavior.
+  player-vs-player-only: true
 
 
 # ============================================================
@@ -48,12 +46,75 @@ pvp:
   # Master switch for CKI PvP handling.
   enabled: true
 
+  # If false:
+  #   PvP damage is allowed but CKI does not create combat.
+  #
+  # If true:
+  #   A valid PvP hit creates/refreshes CombatTag.
+  use-combat-state: true
+
+  # Cancel actual PvP damage when CKI PvP is disabled.
+  block-pvp-when-disabled: true
+
   command:
 
-    # If true, /cki pvp requires the permission below.
     require-permission: true
 
     permission: combatkeepinventory.pvp
+
+
+# ============================================================
+# DEATH / INVENTORY POLICY
+# ============================================================
+
+death:
+
+  # Player kills player after CombatTag has expired.
+  pvp-kill-drops: true
+
+  # Player has an active CombatTag when death occurs.
+  #
+  # IMPORTANT:
+  # Any death cause causes inventory loss while CombatTag
+  # is still active.
+  combat-tag-drops: true
+
+  # No CombatTag + no PvP attribution.
+  #
+  # PvE/environmental death keeps the inventory.
+  pve-keeps-inventory: true
+
+
+# ============================================================
+# INVENTORY / EXPERIENCE
+# ============================================================
+
+inventory:
+
+  # Keep XP/levels when CKI keeps or drops inventory.
+  keep-experience: true
+
+
+# ============================================================
+# WORLDGUARD
+# ============================================================
+
+worldguard:
+
+  # When true, WorldGuard regions can deny PvP handling.
+  enabled: true
+
+  # If WorldGuard is not installed:
+  #
+  # true  = CKI allows PvP normally
+  # false = CKI denies PvP
+  fail-open: true
+
+  # If WorldGuard denies PvP:
+  #
+  # true  = cancel the actual PvP damage
+  # false = allow the damage but don't create CKI CombatTag
+  block-pvp-when-denied: false
 
 
 # ============================================================
@@ -62,31 +123,30 @@ pvp:
 
 worlds:
 
-  # Enable the disabled-world list.
   enabled: true
 
-  # Worlds where CombatKeepInventory is disabled.
-  #
-  # Players in these worlds will not receive CKI combat
-  # handling according to the plugin's world checks.
-  disabled-worlds:
-    - example_world
+  # Completely disable CKI handling in these worlds.
+  disabled-worlds: []
 
 
 # ============================================================
-# EVENT LISTENER
+# LISTENER
 # ============================================================
 
-# Bukkit event priority used by CombatKeepInventory.
-#
-# Available:
-# LOWEST
-# LOW
-# NORMAL
-# HIGH
-# HIGHEST
-# MONITOR
-#
-# HIGHEST is recommended because CKI needs to observe
-# the final combat/death state after most other plugins.
 listener-priority: HIGHEST
+
+
+# ============================================================
+# DEBUG
+# ============================================================
+
+debug:
+
+  # Enables CombatTag/death diagnostic messages.
+  #
+  # Recommended while testing:
+  # true
+  #
+  # Recommended for production:
+  # false
+  combat: false
