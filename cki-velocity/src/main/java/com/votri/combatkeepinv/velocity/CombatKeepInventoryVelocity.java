@@ -14,16 +14,10 @@ import org.slf4j.Logger;
 
 import javax.inject.Inject;
 
-/**
- * CombatKeepInventory Velocity module.
- *
- * <p>This module is responsible for proxy-level player session tracking.
- * Combat and inventory manipulation remain backend responsibilities.</p>
- */
 @Plugin(
         id = "combatkeepinventory",
         name = "CombatKeepInventory",
-        version = "1.1.0-SNAPSHOT-build2",
+        version = "1.1.0-SNAPSHOT-build4",
         authors = {
                 "Vô Tri"
         }
@@ -32,11 +26,9 @@ public final class CombatKeepInventoryVelocity {
 
     private final ProxyServer proxy;
     private final Logger logger;
-
     private final PlayerSessionManager sessionManager;
 
     private PlatformInfo platformInfo;
-
     private VelocitySessionListener sessionListener;
 
     @Inject
@@ -46,9 +38,7 @@ public final class CombatKeepInventoryVelocity {
     ) {
         this.proxy = proxy;
         this.logger = logger;
-
-        this.sessionManager =
-                new PlayerSessionManager();
+        this.sessionManager = new PlayerSessionManager();
     }
 
     @Subscribe
@@ -56,9 +46,7 @@ public final class CombatKeepInventoryVelocity {
             ProxyInitializeEvent event
     ) {
         platformInfo =
-                VelocityPlatformDetector.detect(
-                        proxy
-                );
+                VelocityPlatformDetector.detect(proxy);
 
         sessionListener =
                 new VelocitySessionListener(
@@ -66,11 +54,10 @@ public final class CombatKeepInventoryVelocity {
                         this::handleTransition
                 );
 
-        proxy.getEventManager()
-                .register(
-                        this,
-                        sessionListener
-                );
+        proxy.getEventManager().register(
+                this,
+                sessionListener
+        );
 
         logStartupInformation();
     }
@@ -79,10 +66,7 @@ public final class CombatKeepInventoryVelocity {
     public void onProxyShutdown(
             ProxyShutdownEvent event
     ) {
-
-        if (sessionManager != null) {
-            sessionManager.clear();
-        }
+        sessionManager.clear();
 
         logger.info(
                 "CombatKeepInventory Velocity module disabled."
@@ -95,39 +79,24 @@ public final class CombatKeepInventoryVelocity {
 
         switch (transition.getType()) {
 
-            case CONNECT -> {
+            case CONNECT -> logger.debug(
+                    "Player {} connected to {}.",
+                    transition.getPlayerId(),
+                    transition.getToServer()
+            );
 
-                logger.debug(
-                        "Player {} connected to {}.",
-                        transition.getPlayerId(),
-                        transition.getToServer()
-                );
-            }
+            case SERVER_SWITCH -> logger.debug(
+                    "Player {} switched from {} to {}.",
+                    transition.getPlayerId(),
+                    transition.getFromServer(),
+                    transition.getToServer()
+            );
 
-            case SERVER_SWITCH -> {
-
-                logger.debug(
-                        "Player {} switched from {} to {}.",
-                        transition.getPlayerId(),
-                        transition.getFromServer(),
-                        transition.getToServer()
-                );
-            }
-
-            case CLUSTER_EXIT -> {
-
-                logger.info(
-                        "Player {} left the cluster from server {}.",
-                        transition.getPlayerId(),
-                        transition.getFromServer()
-                );
-
-                /*
-                 * This is the point where the future CKI proxy
-                 * combat-logout service will inspect combat state
-                 * received from the backend.
-                 */
-            }
+            case CLUSTER_EXIT -> logger.info(
+                    "Player {} left the cluster from server {}.",
+                    transition.getPlayerId(),
+                    transition.getFromServer()
+            );
         }
     }
 
@@ -167,6 +136,7 @@ public final class CombatKeepInventoryVelocity {
     }
 
     public PlatformInfo getPlatform() {
+
         if (platformInfo == null) {
             throw new IllegalStateException(
                     "Platform information has not been initialized."
