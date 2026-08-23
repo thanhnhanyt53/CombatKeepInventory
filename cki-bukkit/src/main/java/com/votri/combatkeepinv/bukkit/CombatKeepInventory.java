@@ -245,111 +245,41 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private void initializeComponents() {
 
-        long durationMillis =
-                getCombatDurationSeconds()
-                        * 1000L;
+    long durationMillis =
+            getCombatDurationSeconds()
+                    * 1000L;
 
-        if (combatManager == null) {
+    if (combatManager == null) {
 
-            combatManager =
-                    new CombatManager(
-                            durationMillis
-                    );
+        combatManager =
+                new CombatManager(
+                        durationMillis
+                );
 
-        } else {
+    } else {
 
-            combatManager.setDurationMillis(
-                    durationMillis
-            );
-        }
+        combatManager.setDurationMillis(
+                durationMillis
+        );
+    }
 
-        /*
-         * Bukkit implementation of CombatService.
-         */
+    if (combatService == null) {
 
-        if (combatService == null) {
-
-            combatService =
-                    new BukkitCombatService(
-                            this,
-                            combatManager
-                    );
-        }
-
-        /*
-         * WorldGuard detection.
-         */
-
-        if (worldGuardHook == null) {
-
-            worldGuardHook =
-                    new WorldGuardHook(this);
-        }
-
-        /*
-         * PvPManager detection only.
-         *
-         * This is intentionally NOT a PvPManager hook.
-         */
-
-        if (pvpManagerDetector == null) {
-
-            pvpManagerDetector =
-                    new PvPManagerDetector(this);
-        }
-
-        pvpEnabled =
-                getConfig().getBoolean(
-                        "pvp.enabled",
-                        true
+        combatService =
+                new BukkitCombatService(
+                        this,
+                        combatManager
                 );
     }
 
-    /*
-     * ==========================================================
-     * API
-     * ==========================================================
-     */
+    if (worldGuardHook == null) {
 
-    private void registerApi() {
-
-        try {
-
-            CombatKeepInventoryAPI.Provider.register(
-                    new BukkitCombatKeepInventoryAPI(this)
-            );
-
-        } catch (IllegalStateException exception) {
-
-            getLogger().warning(
-                    "CombatKeepInventory API was already registered."
-            );
-        }
+        worldGuardHook =
+                new WorldGuardHook(this);
     }
+}
 
-    private void unregisterApi() {
-
-        try {
-
-            CombatKeepInventoryAPI api =
-                    CombatKeepInventoryAPI.get();
-
-            if (api instanceof BukkitCombatKeepInventoryAPI) {
-
-                CombatKeepInventoryAPI.Provider.unregister(
-                        api
-                );
-            }
-
-        } catch (IllegalStateException ignored) {
-
-            /*
-             * API was never registered.
-             */
-        }
-    }
-
-    /*
+        
      * ==========================================================
      * Listeners
      * ==========================================================
