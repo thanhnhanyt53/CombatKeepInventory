@@ -9,7 +9,7 @@ import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
 import com.votri.combatkeepinv.core.api.CombatService;
-import com.votri.combatkeepinv.bukkit.hook.PvPManagerHook;
+import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -40,7 +40,7 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
-    private PvPManagerHook pvpManagerHook;
+    private PvPManagerDetector pvpManagerDetector;
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
 
@@ -102,11 +102,7 @@ public final class CombatKeepInventory extends JavaPlugin {
          */
         initializeComponents();
 
-        if (pvpManagerHook != null
-        && pvpManagerHook.isAvailable()) {
-
-    pvpManagerHook.logCompatibilityWarning();
-}
+        pvpManagerDetector.logWarningIfDetected();
 
         /*
          * Public CKI API.
@@ -137,9 +133,6 @@ public void onDisable() {
         CombatKeepInventoryAPI api =
                 CombatKeepInventoryAPI.get();
 
-        if (pvpManagerHook != null) {
-    pvpManagerHook.shutdown();
-}
 
         if (api instanceof
                 com.votri.combatkeepinv.bukkit.api
@@ -159,7 +152,7 @@ public void onDisable() {
     }
 
     combatListener = null;
-    pvpManagerHook = null;
+    pvpManagerDetector = null;
     worldGuardHook = null;
     combatService = null;
     combatManager = null;
@@ -277,17 +270,10 @@ public void onDisable() {
     /*
      * PvPManager compatibility detector.
      */
-    if (pvpManagerHook == null) {
-
-        pvpManagerHook =
-                new PvPManagerHook(
-                        this
-                );
-
-    } else {
-
-        pvpManagerHook.refresh();
-    }
+    if (pvpManagerDetector == null) {
+    pvpManagerDetector =
+            new PvPManagerDetector(this);
+}
 
     pvpEnabled =
             getConfig().getBoolean(
