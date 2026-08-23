@@ -50,7 +50,6 @@ public final class CombatKeepInventory extends JavaPlugin {
     private File messageFile;
     private FileConfiguration messages;
 
-    private boolean pvpEnabled;
     private String selectedPlatform;
 
     @Override
@@ -749,40 +748,10 @@ public final class CombatKeepInventory extends JavaPlugin {
         return pvpEnabled;
     }
 
-    public void setPvPEnabled(boolean enabled) {
+    
 
-        pvpEnabled = enabled;
-
-        getConfig().set(
-                "pvp.enabled",
-                enabled
-        );
-
-        saveConfig();
-    }
-
-    public boolean canTogglePvP(
-            CommandSender sender
-    ) {
-
-        boolean requirePermission =
-                getConfig().getBoolean(
-                        "pvp.command.require-permission",
-                        true
-                );
-
-        if (!requirePermission) {
-            return true;
-        }
-
-        String permission =
-                getConfig().getString(
-                        "pvp.command.permission",
-                        "combatkeepinventory.pvp"
-                );
-
-        return sender.hasPermission(permission);
-    }
+    
+        
 
     /*
      * ==========================================================
