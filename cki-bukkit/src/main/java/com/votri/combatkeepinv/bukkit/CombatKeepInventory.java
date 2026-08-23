@@ -413,6 +413,11 @@ public void onDisable() {
                     + " priority."
     );
 }
+
+    public PvPManagerHook getPvPManagerHook() {
+
+    return pvpManagerHook;
+}
     
     public CombatService getCombatService() {
 
