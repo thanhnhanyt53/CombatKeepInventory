@@ -9,6 +9,7 @@ import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
 import com.votri.combatkeepinv.core.api.CombatService;
+import com.votri.combatkeepinv.bukkit.hook.PvPManagerHook;
 
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -39,6 +40,7 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
+    private PvPManagerHook pvpManagerHook;
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
 
@@ -129,6 +131,10 @@ public void onDisable() {
         CombatKeepInventoryAPI api =
                 CombatKeepInventoryAPI.get();
 
+        if (pvpManagerHook != null) {
+    pvpManagerHook.shutdown();
+}
+
         if (api instanceof
                 com.votri.combatkeepinv.bukkit.api
                         .BukkitCombatKeepInventoryAPI) {
@@ -147,6 +153,7 @@ public void onDisable() {
     }
 
     combatListener = null;
+    pvpManagerHook = null;
     worldGuardHook = null;
     combatService = null;
     combatManager = null;
