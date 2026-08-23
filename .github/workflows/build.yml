@@ -5,25 +5,21 @@ on:
     branches:
       - main
       - master
-
   pull_request:
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
           cache: maven
 
       - name: Verify Java
@@ -32,12 +28,11 @@ jobs:
           javac -version
           mvn -version
 
-      - name: Clean Maven cache
+      - name: Clean Maven cache for Paper API
         run: |
-          rm -rf ~/.m2/repository/io/papermc/paper
-          rm -rf ~/.m2/repository/com/velocitypowered
+          rm -rf ~/.m2/repository/io/papermc/paper/paper-api
 
-      - name: Validate
+      - name: Validate Maven project
         run: |
           mvn -B validate
 
@@ -45,46 +40,21 @@ jobs:
         run: |
           mvn -B clean package -U
 
-      - name: Verify JARs
+      - name: Show artifacts
         run: |
-          echo "=== Bukkit ==="
-          ls -lh cki-bukkit/target/*.jar
+          echo "=== BUILD ARTIFACTS ==="
+          find . \
+            -path '*/target/*.jar' \
+            -type f \
+            -print \
+            | sort
 
-          echo "=== Velocity ==="
-          ls -lh cki-velocity/target/*.jar
-
-          echo "=== Core ==="
-          ls -lh cki-core/target/*.jar
-
-      - name: Verify Java bytecode
-        run: |
-          echo "=== Bukkit ==="
-          javap \
-            -verbose \
-            -classpath cki-bukkit/target/CombatKeepInventory-Bukkit.jar \
-            com.votri.combatkeepinv.bukkit.CombatKeepInventory \
-            | grep "major version"
-
-          echo "=== Velocity ==="
-          javap \
-            -verbose \
-            -classpath cki-velocity/target/CombatKeepInventory-Velocity.jar \
-            com.votri.combatkeepinv.velocity.CombatKeepInventoryVelocity \
-            | grep "major version"
-
-      - name: Upload Bukkit
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CombatKeepInventory-Bukkit
+          name: CombatKeepInventory
           path: |
-            cki-bukkit/target/CombatKeepInventory-Bukkit.jar
-          if-no-files-found: error
-
-      - name: Upload Velocity
-        uses: actions/upload-artifact@v4
-        with:
-          name: CombatKeepInventory-Velocity
-          path: |
-            cki-velocity/target/CombatKeepInventory-Velocity.jar
+            cki-bukkit/target/*.jar
+            cki-velocity/target/*.jar
           if-no-files-found: error
             
