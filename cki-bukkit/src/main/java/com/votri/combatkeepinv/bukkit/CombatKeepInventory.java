@@ -400,12 +400,19 @@ public void onDisable() {
     );
 }
 
-    public PvPManagerHook getPvPManagerHook() {
+/**
+ * Returns the PvPManager detector.
+ *
+ * <p>This detector only checks whether PvPManager is
+ * installed and enabled. CombatKeepInventory does not
+ * hook into or control PvPManager.</p>
+ */
+public PvPManagerDetector getPvPManagerDetector() {
 
-    return pvpManagerHook;
+    return pvpManagerDetector;
 }
-    
-    public CombatService getCombatService() {
+
+public CombatService getCombatService() {
 
     if (combatService == null) {
         throw new IllegalStateException(
@@ -415,8 +422,6 @@ public void onDisable() {
 
     return combatService;
 }
-
-    public EventPriority getListenerPriority() {
 
         String value =
                 getConfig().getString(
