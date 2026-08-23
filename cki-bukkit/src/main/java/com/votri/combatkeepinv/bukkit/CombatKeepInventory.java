@@ -102,6 +102,12 @@ public final class CombatKeepInventory extends JavaPlugin {
          */
         initializeComponents();
 
+        if (pvpManagerHook != null
+        && pvpManagerHook.isAvailable()) {
+
+    pvpManagerHook.logCompatibilityWarning();
+}
+
         /*
          * Public CKI API.
          */
