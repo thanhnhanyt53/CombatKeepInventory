@@ -176,69 +176,84 @@ public final class CombatListener implements Listener {
      * then CombatService decides KEEP/DROP.</p>
      */
     public void onPlayerDeath(
-            PlayerDeathEvent event
-    ) {
-        Player victim =
-                event.getEntity();
+        PlayerDeathEvent event
+) {
+    Player victim =
+            event.getEntity();
 
-        if (plugin.isWorldDisabled(
-                victim.getWorld()
-        )) {
-            return;
-        }
+    if (plugin.isWorldDisabled(
+            victim.getWorld()
+    )) {
+        return;
+    }
 
-        UUID uuid =
-                victim.getUniqueId();
+    UUID uuid =
+            victim.getUniqueId();
 
-        /*
-         * =========================================================
-         * BYPASS
-         * =========================================================
-         */
-        if (victim.hasPermission(
-                BYPASS_PERMISSION
-        )) {
+    /*
+     * ==========================================================
+     * BYPASS
+     * ==========================================================
+     */
 
-            handleKeepInventory(event);
+    if (victim.hasPermission(
+            BYPASS_PERMISSION
+    )) {
 
-            combatService.endCombat(uuid);
+        handleKeepInventory(event);
 
-            return;
-        }
-
-        /*
-         * Determine the actual death context.
-         *
-         * Do NOT use combatService.isInCombat() here.
-         *
-         * Being combat-tagged does not mean that every subsequent
-         * death is a PvP death.
-         */
-        DeathContext context =
-                resolveDeathContext(victim);
-
-        DeathResult result =
-                combatService.evaluateDeath(
-                        uuid,
-                        context
-                );
-
-        applyDeathResult(
-                event,
-                result
-        );
-
-        /*
-         * A death always ends the local combat state.
-         */
         combatService.endCombat(uuid);
 
-        debugDeath(
-                victim,
-                context,
-                result
-        );
+        return;
     }
+
+    /*
+     * ==========================================================
+     * DEATH CONTEXT
+     * ==========================================================
+     *
+     * The final damage source is still resolved for cases where
+     * the combat tag has already expired.
+     */
+
+    DeathContext context =
+            resolveDeathContext(victim);
+
+    /*
+     * ==========================================================
+     * COMBAT SERVICE
+     * ==========================================================
+     *
+     * BukkitCombatService gives active combat-tag state priority.
+     */
+
+    DeathResult result =
+            combatService.evaluateDeath(
+                    uuid,
+                    context
+            );
+
+    applyDeathResult(
+            event,
+            result
+    );
+
+    /*
+     * A death always ends the combat state AFTER the result
+     * has been evaluated.
+     */
+    combatService.endCombat(
+            uuid
+    );
+
+    debugDeath(
+            victim,
+            context,
+            result
+    );
+}
+
+
 
     /**
      * Converts the Bukkit death cause into the core DeathContext.
