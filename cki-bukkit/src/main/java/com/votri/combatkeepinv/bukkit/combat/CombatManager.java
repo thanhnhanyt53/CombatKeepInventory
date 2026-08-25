@@ -5,10 +5,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Stores the active CombatTag state.
+ * Owns the CombatTag state for every player.
  *
- * <p>CombatManager is the source of truth for whether a player
- * is currently in CombatTag.</p>
+ * <p>CombatTag is per-player state, not a fixed attacker/victim pair.</p>
+ *
+ * <p>Every valid player-vs-player hit overwrites the player's
+ * expiration timestamp.</p>
  */
 public final class CombatManager {
 
@@ -17,30 +19,15 @@ public final class CombatManager {
 
     private volatile long durationMillis;
 
-    public CombatManager(
-            long durationMillis
-    ) {
+    public CombatManager(long durationMillis) {
         setDurationMillis(durationMillis);
     }
 
-    /**
-     * Sets the CombatTag duration.
-     *
-     * @param durationMillis duration in milliseconds
-     */
-    public void setDurationMillis(
-            long durationMillis
-    ) {
+    public void setDurationMillis(long durationMillis) {
         this.durationMillis =
-                Math.max(
-                        1000L,
-                        durationMillis
-                );
+                Math.max(1000L, durationMillis);
     }
 
-    /**
-     * Returns the configured CombatTag duration.
-     */
     public long getDurationMillis() {
         return durationMillis;
     }
@@ -48,31 +35,24 @@ public final class CombatManager {
     /**
      * Creates or refreshes a CombatTag.
      */
-    public void tag(
-            UUID uuid
-    ) {
-        if (uuid == null) {
+    public void tag(UUID player) {
+        if (player == null) {
             return;
         }
 
-        long now =
-                System.currentTimeMillis();
+        long expiresAt =
+                System.currentTimeMillis() + durationMillis;
 
-        combatUntil.put(
-                uuid,
-                now + durationMillis
-        );
+        combatUntil.put(player, expiresAt);
     }
 
     /**
      * Creates or refreshes CombatTag for both players.
+     *
+     * <p>Both timestamps are independently reset.</p>
      */
-    public void tag(
-            UUID first,
-            UUID second
-    ) {
-        if (first == null
-                || second == null) {
+    public void tag(UUID first, UUID second) {
+        if (first == null || second == null) {
             return;
         }
 
@@ -85,34 +65,25 @@ public final class CombatManager {
     }
 
     /**
-     * Returns whether the player is currently CombatTagged.
-     *
-     * <p>Expired entries are removed atomically.</p>
+     * Returns true only while the player's CombatTag is active.
      */
-    public boolean isInCombat(
-            UUID uuid
-    ) {
-        if (uuid == null) {
+    public boolean isInCombat(UUID player) {
+        if (player == null) {
             return false;
         }
 
-        Long until =
-                combatUntil.get(uuid);
+        Long expiresAt =
+                combatUntil.get(player);
 
-        if (until == null) {
+        if (expiresAt == null) {
             return false;
         }
 
         long now =
                 System.currentTimeMillis();
 
-        if (until <= now) {
-
-            combatUntil.remove(
-                    uuid,
-                    until
-            );
-
+        if (expiresAt <= now) {
+            combatUntil.remove(player, expiresAt);
             return false;
         }
 
@@ -120,33 +91,25 @@ public final class CombatManager {
     }
 
     /**
-     * Returns the remaining CombatTag duration in milliseconds.
+     * Returns remaining CombatTag time in milliseconds.
      */
-    public long getRemainingMillis(
-            UUID uuid
-    ) {
-        if (uuid == null) {
+    public long getRemainingMillis(UUID player) {
+        if (player == null) {
             return 0L;
         }
 
-        Long until =
-                combatUntil.get(uuid);
+        Long expiresAt =
+                combatUntil.get(player);
 
-        if (until == null) {
+        if (expiresAt == null) {
             return 0L;
         }
 
         long remaining =
-                until
-                        - System.currentTimeMillis();
+                expiresAt - System.currentTimeMillis();
 
         if (remaining <= 0L) {
-
-            combatUntil.remove(
-                    uuid,
-                    until
-            );
-
+            combatUntil.remove(player, expiresAt);
             return 0L;
         }
 
@@ -154,32 +117,26 @@ public final class CombatManager {
     }
 
     /**
-     * Returns remaining CombatTag duration in seconds,
-     * rounded up.
+     * Returns remaining CombatTag time in seconds,
+     * rounded upward.
      */
-    public long getRemainingSeconds(
-            UUID uuid
-    ) {
+    public long getRemainingSeconds(UUID player) {
         long remaining =
-                getRemainingMillis(uuid);
+                getRemainingMillis(player);
 
         if (remaining <= 0L) {
             return 0L;
         }
 
-        return (
-                remaining + 999L
-        ) / 1000L;
+        return (remaining + 999L) / 1000L;
     }
 
     /**
      * Removes a player's CombatTag.
      */
-    public void remove(
-            UUID uuid
-    ) {
-        if (uuid != null) {
-            combatUntil.remove(uuid);
+    public void remove(UUID player) {
+        if (player != null) {
+            combatUntil.remove(player);
         }
     }
 
@@ -187,30 +144,24 @@ public final class CombatManager {
      * Removes all expired entries.
      */
     public void cleanupExpired() {
-
         long now =
                 System.currentTimeMillis();
 
-        combatUntil.entrySet()
-                .removeIf(
-                        entry ->
-                                entry.getValue()
-                                        <= now
-                );
+        combatUntil.entrySet().removeIf(
+                entry -> entry.getValue() <= now
+        );
     }
 
     /**
      * Returns the number of active CombatTags.
      */
     public int size() {
-
         cleanupExpired();
-
         return combatUntil.size();
     }
 
     /**
-     * Removes every CombatTag.
+     * Clears all CombatTags.
      */
     public void clear() {
         combatUntil.clear();
