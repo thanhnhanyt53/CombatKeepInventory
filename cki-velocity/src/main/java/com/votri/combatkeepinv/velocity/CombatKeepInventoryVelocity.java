@@ -2,16 +2,22 @@ package com.votri.combatkeepinv.velocity;
 
 import com.google.inject.Inject;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
+import com.votri.combatkeepinv.velocity.api.ProxyCombatStateManager;
+import com.votri.combatkeepinv.velocity.api.VelocityCombatAPI;
+import com.votri.combatkeepinv.velocity.api.VelocityCombatAPIImpl;
 import com.votri.combatkeepinv.velocity.listener.VelocitySessionListener;
 import com.votri.combatkeepinv.velocity.platform.VelocityPlatformDetector;
 import com.votri.combatkeepinv.velocity.session.PlayerSessionManager;
 import com.votri.combatkeepinv.velocity.session.SessionTransition;
+
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
+
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -31,14 +37,28 @@ import java.nio.file.StandardCopyOption;
 )
 public final class CombatKeepInventoryVelocity {
 
+    public static final String CHANNEL =
+            "votri:combat";
+
+    public static final int PROTOCOL_VERSION =
+            1;
+
+    public static final MinecraftChannelIdentifier
+            CHANNEL_IDENTIFIER =
+            MinecraftChannelIdentifier.from(
+                    CHANNEL
+            );
+
     private final ProxyServer proxy;
     private final Logger logger;
     private final Path dataDirectory;
 
     private final PlayerSessionManager sessionManager;
+    private final ProxyCombatStateManager combatStateManager;
 
     private PlatformInfo platformInfo;
 
+    private VelocityCombatAPIImpl combatAPI;
     private VelocitySessionListener sessionListener;
 
     @Inject
@@ -47,12 +67,21 @@ public final class CombatKeepInventoryVelocity {
             Logger logger,
             @DataDirectory Path dataDirectory
     ) {
-        this.proxy = proxy;
-        this.logger = logger;
-        this.dataDirectory = dataDirectory;
+
+        this.proxy =
+                proxy;
+
+        this.logger =
+                logger;
+
+        this.dataDirectory =
+                dataDirectory;
 
         this.sessionManager =
                 new PlayerSessionManager();
+
+        this.combatStateManager =
+                new ProxyCombatStateManager();
     }
 
     @Subscribe
@@ -67,10 +96,45 @@ public final class CombatKeepInventoryVelocity {
                         proxy
                 );
 
+        /*
+         * ==========================================================
+         * COMBAT API
+         * ==========================================================
+         */
+
+        combatAPI =
+                new VelocityCombatAPIImpl(
+                        proxy,
+                        combatStateManager
+                );
+
+        VelocityCombatAPI.Provider.register(
+                combatAPI
+        );
+
+        /*
+         * ==========================================================
+         * COMBAT CHANNEL
+         * ==========================================================
+         */
+
+        proxy.getChannelRegistrar()
+                .register(
+                        CHANNEL_IDENTIFIER
+                );
+
+        /*
+         * ==========================================================
+         * SESSION + COMBAT LISTENER
+         * ==========================================================
+         */
+
         sessionListener =
                 new VelocitySessionListener(
                         sessionManager,
-                        this::handleTransition
+                        combatStateManager,
+                        this::handleTransition,
+                        logger
                 );
 
         proxy.getEventManager()
@@ -87,12 +151,55 @@ public final class CombatKeepInventoryVelocity {
             ProxyShutdownEvent event
     ) {
 
+        /*
+         * Disable API first so external plugins cannot
+         * continue using a shutting-down instance.
+         */
+
+        if (combatAPI != null) {
+
+            combatAPI.setEnabled(false);
+
+            VelocityCombatAPI.Provider.unregister(
+                    combatAPI
+            );
+
+            combatAPI = null;
+        }
+
+        /*
+         * Remove channel registration.
+         */
+
+        proxy.getChannelRegistrar()
+                .unregister(
+                        CHANNEL_IDENTIFIER
+                );
+
+        /*
+         * Clear mirrored state.
+         */
+
+        combatStateManager.clear();
+
+        /*
+         * Clear session state.
+         */
+
         sessionManager.clear();
+
+        sessionListener = null;
 
         logger.info(
                 "CombatKeepInventory Velocity module disabled."
         );
     }
+
+    /*
+     * ==========================================================
+     * DATA
+     * ==========================================================
+     */
 
     private void initializeDataFiles() {
 
@@ -129,9 +236,6 @@ public final class CombatKeepInventoryVelocity {
                         resourceName
                 );
 
-        /*
-         * Never overwrite an existing configuration.
-         */
         if (Files.exists(target)) {
             return;
         }
@@ -155,7 +259,8 @@ public final class CombatKeepInventoryVelocity {
 
             Path temporary =
                     dataDirectory.resolve(
-                            resourceName + ".tmp"
+                            resourceName
+                                    + ".tmp"
                     );
 
             try (
@@ -176,7 +281,7 @@ public final class CombatKeepInventoryVelocity {
                         StandardCopyOption.ATOMIC_MOVE
                 );
 
-            } catch (IOException atomicMoveException) {
+            } catch (IOException ignored) {
 
                 Files.move(
                         temporary,
@@ -187,9 +292,19 @@ public final class CombatKeepInventoryVelocity {
         }
     }
 
+    /*
+     * ==========================================================
+     * SESSION TRANSITIONS
+     * ==========================================================
+     */
+
     private void handleTransition(
             SessionTransition transition
     ) {
+
+        if (transition == null) {
+            return;
+        }
 
         switch (transition.getType()) {
 
@@ -204,6 +319,18 @@ public final class CombatKeepInventoryVelocity {
 
             case SERVER_SWITCH -> {
 
+                /*
+                 * Combat state itself is NOT created here.
+                 *
+                 * If the player already has authoritative
+                 * combat state, update only backend metadata.
+                 */
+
+                combatStateManager.updateBackendServer(
+                        transition.getPlayerId(),
+                        transition.getToServer()
+                );
+
                 logger.debug(
                         "Player {} switched from {} to {}.",
                         transition.getPlayerId(),
@@ -214,6 +341,15 @@ public final class CombatKeepInventoryVelocity {
 
             case CLUSTER_EXIT -> {
 
+                /*
+                 * A disconnected player must not remain
+                 * mirrored indefinitely on the proxy.
+                 */
+
+                combatStateManager.forceEnd(
+                        transition.getPlayerId()
+                );
+
                 logger.info(
                         "Player {} left the cluster from server {}.",
                         transition.getPlayerId(),
@@ -222,6 +358,68 @@ public final class CombatKeepInventoryVelocity {
             }
         }
     }
+
+    /*
+     * ==========================================================
+     * ACCESSORS
+     * ==========================================================
+     */
+
+    public ProxyServer getProxy() {
+
+        return proxy;
+    }
+
+    public Logger getLogger() {
+
+        return logger;
+    }
+
+    public Path getDataDirectory() {
+
+        return dataDirectory;
+    }
+
+    public PlatformInfo getPlatform() {
+
+        if (platformInfo == null) {
+
+            throw new IllegalStateException(
+                    "Platform information has not been initialized."
+            );
+        }
+
+        return platformInfo;
+    }
+
+    public PlayerSessionManager getSessionManager() {
+
+        return sessionManager;
+    }
+
+    public ProxyCombatStateManager
+    getCombatStateManager() {
+
+        return combatStateManager;
+    }
+
+    public VelocityCombatAPI getCombatAPI() {
+
+        if (combatAPI == null) {
+
+            throw new IllegalStateException(
+                    "VelocityCombatAPI has not been initialized."
+            );
+        }
+
+        return combatAPI;
+    }
+
+    /*
+     * ==========================================================
+     * STARTUP
+     * ==========================================================
+     */
 
     private void logStartupInformation() {
 
@@ -253,33 +451,19 @@ public final class CombatKeepInventoryVelocity {
                 "Minecraft version: {}",
                 platformInfo.getMinecraftVersion()
         );
-    }
 
-    public ProxyServer getProxy() {
-        return proxy;
-    }
+        logger.info(
+                "CombatStateBridge channel: {}",
+                CHANNEL
+        );
 
-    public Logger getLogger() {
-        return logger;
-    }
+        logger.info(
+                "CombatStateBridge protocol: {}",
+                PROTOCOL_VERSION
+        );
 
-    public Path getDataDirectory() {
-        return dataDirectory;
-    }
-
-    public PlatformInfo getPlatform() {
-
-        if (platformInfo == null) {
-
-            throw new IllegalStateException(
-                    "Platform information has not been initialized."
-            );
-        }
-
-        return platformInfo;
-    }
-
-    public PlayerSessionManager getSessionManager() {
-        return sessionManager;
+        logger.info(
+                "VelocityCombatAPI: ENABLED"
+        );
     }
 }
