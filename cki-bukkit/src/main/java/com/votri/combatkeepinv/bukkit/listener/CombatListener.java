@@ -3,6 +3,7 @@ package com.votri.combatkeepinv.bukkit.listener;
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
+import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
@@ -10,33 +11,32 @@ import com.votri.combatkeepinv.core.api.DeathResult;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
 
 /**
- * Bukkit event adapter for CombatKeepInventory.
+ * Converts Bukkit combat/death events into CKI combat state changes.
  *
- * <p>This class has two responsibilities:</p>
+ * <p>CombatListener is responsible for translating Bukkit events
+ * into the public CombatService API.</p>
+ *
+ * <p>CombatManager owns the actual runtime CombatTag state.</p>
+ *
+ * <p>CombatService owns the combat/death policy.</p>
+ *
+ * <p>Important rules:</p>
  *
  * <ul>
- *     <li>Convert valid player-originated damage into CombatTag state.</li>
- *     <li>Evaluate the player's CombatTag before deciding inventory policy
- *     on death.</li>
- * </ul>
- *
- * <p>Important:</p>
- *
- * <ul>
- *     <li>PvPManager is not used.</li>
- *     <li>WorldGuard is only used for world restrictions.</li>
- *     <li>Bypass permission does NOT prevent CombatTag creation.</li>
- *     <li>Vanilla/Bukkit handles actual item dropping.</li>
+ *     <li>Only player-originated damage creates/refreshes CombatTag.</li>
+ *     <li>Player-owned projectiles count as player damage.</li>
+ *     <li>Mob/environment damage never creates CombatTag.</li>
+ *     <li>CombatTag is checked before DeathContext.</li>
+ *     <li>Active CombatTag always has priority over death cause.</li>
  * </ul>
  */
 public final class CombatListener implements Listener {
@@ -70,70 +70,79 @@ public final class CombatListener implements Listener {
 
     /*
      * ==========================================================
-     * DAMAGE
+     * COMBAT DAMAGE
      * ==========================================================
      */
 
     /**
      * Handles entity damage.
      *
-     * <p>Only damage caused by a player, either directly or
-     * through a player-owned projectile, creates CombatTag.</p>
+     * <p>
+     * CombatTag is created only when:
      *
-     * <p>Every valid player-originated hit refreshes the
-     * CombatTag of both the attacker and victim.</p>
+     * <pre>
+     * Player -> Player
+     * </pre>
+     *
+     * or:
+     *
+     * <pre>
+     * Player -> Projectile -> Player
+     * </pre>
+     *
+     * is detected.
+     * </p>
      */
-    @EventHandler(
-            priority = EventPriority.HIGHEST,
-            ignoreCancelled = true
-    )
     public void onEntityDamageByEntity(
             EntityDamageByEntityEvent event
     ) {
 
         /*
-         * ======================================================
-         * VICTIM
-         * ======================================================
+         * Cancelled damage is not a valid hit.
          */
-
-        if (!(event.getEntity() instanceof Player victim)) {
-
+        if (event.isCancelled()) {
             return;
         }
 
         /*
-         * ======================================================
-         * DEBUG: DAMAGE RECEIVED
-         * ======================================================
+         * Victim must be a player.
          */
+        if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
 
+        /*
+         * Debug the raw event before filtering.
+         */
         debugDamageReceived(
                 event,
                 victim
         );
 
         /*
-         * ======================================================
-         * RESOLVE PLAYER ATTACKER
-         * ======================================================
-         *
-         * Supports:
-         *
-         * Player -> Player
-         *
-         * Player -> Projectile -> Player
+         * Resolve the actual player responsible
+         * for the damage.
          */
-
         Player attacker =
                 resolveAttackingPlayer(
                         event.getDamager()
                 );
 
         /*
-         * Mob / environment / non-player-owned projectile.
+         * Mob / environmental damage.
+         *
+         * Examples:
+         *
+         * Iron Golem
+         * Zombie
+         * Skeleton
+         * Creeper
+         * TNT
+         * End Crystal
+         * etc.
+         *
+         * These must NEVER create CombatTag.
          */
-
         if (attacker == null) {
 
             debugDamageIgnored(
@@ -144,13 +153,11 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ======================================================
-         * SELF DAMAGE
-         * ======================================================
+         * Prevent self-damage.
          */
-
-        if (attacker.getUniqueId()
-                .equals(victim.getUniqueId())) {
+        if (attacker.getUniqueId().equals(
+                victim.getUniqueId()
+        )) {
 
             debugDamageIgnored(
                     "attacker and victim are the same player."
@@ -160,11 +167,27 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ======================================================
-         * WORLD CHECK
-         * ======================================================
+         * Bypass permission.
+         *
+         * If either participant has bypass permission,
+         * this hit does not create or refresh CombatTag.
          */
+        if (attacker.hasPermission(
+                BYPASS_PERMISSION
+        ) || victim.hasPermission(
+                BYPASS_PERMISSION
+        )) {
 
+            debugDamageIgnored(
+                    "bypass permission."
+            );
+
+            return;
+        }
+
+        /*
+         * CKI disabled-world check.
+         */
         if (plugin.isWorldDisabled(
                 attacker.getWorld()
         ) || plugin.isWorldDisabled(
@@ -172,7 +195,7 @@ public final class CombatListener implements Listener {
         )) {
 
             debugDamageIgnored(
-                    "damage occurred in a disabled world."
+                    "CKI is disabled in this world."
             );
 
             return;
@@ -180,78 +203,63 @@ public final class CombatListener implements Listener {
 
         /*
          * ======================================================
-         * IMPORTANT:
-         * BYPASS DOES NOT BELONG HERE.
+         * COMBAT SERVICE
          * ======================================================
          *
-         * combatkeepinventory.bypass only affects the death
-         * inventory policy.
+         * CombatListener deliberately does NOT call:
          *
-         * It must NOT prevent CombatTag from being created.
+         *     combatManager.tag(...)
          *
-         * Therefore there is intentionally NO:
+         *     combatManager.start(...)
          *
-         * attacker.hasPermission(...)
+         *     combatManager.refresh(...)
          *
-         * or:
+         * The service owns that decision.
          *
-         * victim.hasPermission(...)
+         * startCombat() means:
          *
-         * check in this section.
+         *     no active tag -> create tag
+         *     active tag    -> refresh tag
          */
+        CombatResult result =
+                combatService.startCombat(
+                        attacker.getUniqueId(),
+                        victim.getUniqueId()
+                );
 
         /*
-         * ======================================================
-         * CREATE / REFRESH COMBAT TAG
-         * ======================================================
-         *
-         * Both players receive the same combat duration.
-         *
-         * Any later valid hit refreshes the timer again.
+         * Debug the final result.
          */
-
-        combatManager.tag(
-                attacker.getUniqueId(),
-                victim.getUniqueId()
-        );
-
-        /*
-         * ======================================================
-         * VERIFY TAG
-         * ======================================================
-         */
-
-        debugCombatTag(
+        debugCombatResult(
                 attacker,
-                victim
+                victim,
+                result
         );
     }
 
     /*
      * ==========================================================
-     * DEATH
+     * PLAYER DEATH
      * ==========================================================
      */
 
     /**
      * Handles player death.
      *
-     * <p>The decision order is deliberately:</p>
+     * <p>
+     * The decision order is strictly:
      *
-     * <ol>
-     *     <li>Check bypass.</li>
-     *     <li>Check active CombatTag.</li>
-     *     <li>If no CombatTag, resolve final death context.</li>
-     *     <li>Apply the resulting inventory policy.</li>
-     *     <li>Remove CombatTag.</li>
-     * </ol>
+     * <pre>
+     * 1. Check active CombatTag.
+     * 2. If active -> DROP.
+     * 3. If inactive -> resolve DeathContext.
+     * 4. Apply PvP/PvE policy.
+     * </pre>
      *
-     * <p>Most importantly, CombatTag is checked BEFORE using
-     * the final death cause to decide the inventory policy.</p>
+     * <p>
+     * DeathContext must never override an active CombatTag.
+     * </p>
      */
-    @EventHandler(
-            priority = EventPriority.HIGHEST
-    )
     public void onPlayerDeath(
             PlayerDeathEvent event
     ) {
@@ -272,12 +280,6 @@ public final class CombatListener implements Listener {
                 victim.getWorld()
         )) {
 
-            debugDeath(
-                    victim,
-                    null,
-                    "WORLD_DISABLED"
-            );
-
             return;
         }
 
@@ -285,10 +287,6 @@ public final class CombatListener implements Listener {
          * ======================================================
          * BYPASS
          * ======================================================
-         *
-         * Bypass affects the death policy only.
-         *
-         * CombatTag itself may have existed normally.
          */
 
         if (victim.hasPermission(
@@ -296,15 +294,16 @@ public final class CombatListener implements Listener {
         )) {
 
             handleKeepInventory(
-                    event,
-                    getKeepExperience()
+                    event
             );
 
-            combatManager.remove(uuid);
+            combatManager.remove(
+                    uuid
+            );
 
             debugDeath(
                     victim,
-                    resolveDeathContext(victim),
+                    null,
                     "BYPASS"
             );
 
@@ -313,55 +312,57 @@ public final class CombatListener implements Listener {
 
         /*
          * ======================================================
-         * STEP 1:
-         * CHECK ACTIVE COMBAT TAG FIRST
+         * STEP 1 — CHECK COMBAT TAG FIRST
          * ======================================================
+         *
+         * This check MUST happen before looking at:
+         *
+         *     getKiller()
+         *
+         *     getLastDamageCause()
+         *
+         *     DeathContext
+         *
+         * If the player is tagged, the cause of death is irrelevant.
          */
-
         boolean inCombat =
-                combatManager.isInCombat(
+                combatService.isInCombat(
                         uuid
                 );
+
+        /*
+         * ======================================================
+         * ACTIVE COMBAT TAG
+         * ======================================================
+         */
 
         if (inCombat) {
 
             /*
-             * CombatTag has priority over the final damage source.
+             * Do NOT resolve DeathContext.
              *
-             * Example:
-             *
-             * Player -> Player
-             * Player receives CombatTag
-             * Player is later killed by Iron Golem
-             *
-             * Result:
-             *
-             * DROP
-             *
-             * because the player was still in active combat.
+             * CombatTag has absolute priority.
              */
-
             DeathResult result =
                     combatService.evaluateDeath(
                             uuid,
-                            DeathContext.MOB
+                            null
                     );
 
             /*
-             * Defensive behavior:
+             * Defensive guarantee.
              *
-             * Active CombatTag MUST result in inventory DROP.
-             *
-             * If the service returns KEEP unexpectedly,
-             * force DROP here.
+             * Active CombatTag must always drop inventory.
              */
-
             if (result == null
                     || !result.shouldDropInventory()) {
 
                 handleDropInventory(
                         event,
-                        getKeepExperience()
+                        plugin.getConfig().getBoolean(
+                                "inventory.keep-experience",
+                                true
+                        )
                 );
 
             } else {
@@ -374,26 +375,28 @@ public final class CombatListener implements Listener {
 
             debugDeath(
                     victim,
-                    resolveDeathContext(victim),
+                    null,
                     "ACTIVE_COMBAT_TAG"
             );
 
             /*
-             * CombatTag is no longer needed after death.
+             * Player is dead.
+             * Remove the active CombatTag.
              */
-
-            combatManager.remove(uuid);
+            combatManager.remove(
+                    uuid
+            );
 
             return;
         }
 
         /*
          * ======================================================
-         * STEP 2:
-         * NO ACTIVE COMBAT TAG
+         * STEP 2 — NO ACTIVE COMBAT TAG
          * ======================================================
+         *
+         * Only now is the death cause relevant.
          */
-
         DeathContext context =
                 resolveDeathContext(
                         victim
@@ -401,8 +404,7 @@ public final class CombatListener implements Listener {
 
         /*
          * ======================================================
-         * STEP 3:
-         * FINAL DEATH POLICY
+         * STEP 3 — DEATH POLICY
          * ======================================================
          */
 
@@ -424,13 +426,11 @@ public final class CombatListener implements Listener {
         );
 
         /*
-         * ======================================================
-         * STEP 4:
-         * CLEAR COMBAT TAG
-         * ======================================================
+         * Defensive cleanup.
          */
-
-        combatManager.remove(uuid);
+        combatManager.remove(
+                uuid
+        );
     }
 
     /*
@@ -440,29 +440,28 @@ public final class CombatListener implements Listener {
      */
 
     /**
-     * Resolves the final damage source.
+     * Resolves the final death context.
      *
-     * <p>This method is only used when there is NO active
-     * CombatTag. An active CombatTag already has priority.</p>
+     * <p>
+     * This method is ONLY called after CombatTag has already
+     * been checked and found inactive.
+     * </p>
      */
     private DeathContext resolveDeathContext(
             Player player
     ) {
 
         /*
-         * Bukkit's killer API is the most direct indication
-         * of a player kill.
+         * Bukkit's direct killer information.
          */
-
         if (player.getKiller() != null) {
 
             return DeathContext.PLAYER;
         }
 
         /*
-         * Inspect the final damage event.
+         * Inspect final damage cause.
          */
-
         if (player.getLastDamageCause()
                 instanceof EntityDamageByEntityEvent damage) {
 
@@ -472,41 +471,43 @@ public final class CombatListener implements Listener {
             /*
              * Direct player attack.
              */
-
             if (damager instanceof Player) {
 
                 return DeathContext.PLAYER;
             }
 
             /*
-             * Player-owned projectile.
+             * Projectile.
              */
-
             if (damager instanceof Projectile projectile) {
 
                 ProjectileSource source =
                         projectile.getShooter();
 
+                /*
+                 * Player-owned projectile.
+                 */
                 if (source instanceof Player) {
 
                     return DeathContext.PROJECTILE;
                 }
 
+                /*
+                 * Non-player projectile.
+                 */
                 return DeathContext.MOB;
             }
 
             /*
              * Other entity.
              */
-
             return DeathContext.MOB;
         }
 
         /*
-         * Fall, void, lava, fire, suffocation,
+         * Fall, lava, void, fire, suffocation,
          * explosion, etc.
          */
-
         return DeathContext.ENVIRONMENT;
     }
 
@@ -516,6 +517,9 @@ public final class CombatListener implements Listener {
      * ==========================================================
      */
 
+    /**
+     * Converts a DeathResult into Bukkit death behavior.
+     */
     private void applyDeathResult(
             PlayerDeathEvent event,
             DeathResult result
@@ -523,14 +527,8 @@ public final class CombatListener implements Listener {
 
         if (result == null) {
 
-            /*
-             * Defensive fallback:
-             * keep inventory rather than accidentally losing it.
-             */
-
             handleKeepInventory(
-                    event,
-                    getKeepExperience()
+                    event
             );
 
             return;
@@ -554,54 +552,90 @@ public final class CombatListener implements Listener {
 
     /*
      * ==========================================================
-     * VANILLA DROP
+     * INVENTORY DROP
      * ==========================================================
      */
 
     /**
-     * Allows Bukkit/Minecraft to perform the normal death drop.
+     * Forces the inventory to drop.
      *
-     * <p>CKI deliberately does NOT:</p>
-     *
-     * <ul>
-     *     <li>copy inventory contents;</li>
-     *     <li>clear the existing drop list;</li>
-     *     <li>calculate coordinates;</li>
-     *     <li>create Item entities;</li>
-     *     <li>apply random offsets;</li>
-     *     <li>apply custom velocity.</li>
-     * </ul>
-     *
-     * <p>This keeps the actual item drop behavior under
-     * Minecraft/Paper's normal death-drop pipeline.</p>
+     * <p>
+     * Bukkit/Minecraft will subsequently handle the actual
+     * item-entity spawning according to the normal death-drop
+     * pipeline.
+     * </p>
      */
     private void handleDropInventory(
             PlayerDeathEvent event,
             boolean keepExperience
     ) {
 
+        Player player =
+                event.getEntity();
+
         /*
-         * Do NOT call event.getDrops().clear() here.
-         *
-         * Bukkit/Paper has already prepared the death drops.
+         * Clear Bukkit's automatically generated drops.
          */
+        event.getDrops().clear();
 
-        event.setKeepInventory(false);
+        /*
+         * Storage inventory.
+         */
+        addDrops(
+                event,
+                player.getInventory()
+                        .getStorageContents()
+        );
 
+        /*
+         * Armor.
+         */
+        addDrops(
+                event,
+                player.getInventory()
+                        .getArmorContents()
+        );
+
+        /*
+         * Offhand / extra contents.
+         */
+        addDrops(
+                event,
+                player.getInventory()
+                        .getExtraContents()
+        );
+
+        /*
+         * Disable keep-inventory.
+         */
+        event.setKeepInventory(
+                false
+        );
+
+        /*
+         * Experience policy.
+         */
         if (keepExperience) {
 
-            event.setKeepLevel(true);
+            event.setKeepLevel(
+                    true
+            );
 
         } else {
 
-            event.setKeepLevel(false);
-            event.setDroppedExp(0);
+            event.setKeepLevel(
+                    false
+            );
+
+            event.setDroppedExp(
+                    0
+            );
         }
     }
 
     /*
      * ==========================================================
-     * KEEP INVENTORY
+     * INVENTORY KEEP
      * ==========================================================
      */
 
@@ -611,7 +645,10 @@ public final class CombatListener implements Listener {
 
         handleKeepInventory(
                 event,
-                getKeepExperience()
+                plugin.getConfig().getBoolean(
+                        "inventory.keep-experience",
+                        true
+                )
         );
     }
 
@@ -620,75 +657,99 @@ public final class CombatListener implements Listener {
             boolean keepExperience
     ) {
 
-        /*
-         * Inventory is kept, therefore the death drop list
-         * must not contain those inventory items.
-         */
+        event.setKeepInventory(
+                true
+        );
 
-        event.setKeepInventory(true);
         event.getDrops().clear();
 
         if (keepExperience) {
 
-            event.setKeepLevel(true);
-            event.setDroppedExp(0);
+            event.setKeepLevel(
+                    true
+            );
+
+            event.setDroppedExp(
+                    0
+            );
 
         } else {
 
-            event.setKeepLevel(false);
-            event.setDroppedExp(0);
+            event.setKeepLevel(
+                    false
+            );
+
+            event.setDroppedExp(
+                    0
+            );
         }
     }
 
     /*
      * ==========================================================
-     * CONFIG
+     * DROP UTILITIES
      * ==========================================================
      */
 
-    private boolean getKeepExperience() {
+    private void addDrops(
+            PlayerDeathEvent event,
+            ItemStack[] items
+    ) {
 
-        return plugin.getConfig().getBoolean(
-                "inventory.keep-experience",
-                true
-        );
+        if (items == null) {
+            return;
+        }
+
+        for (ItemStack item : items) {
+
+            if (item == null
+                    || item.getType().isAir()) {
+
+                continue;
+            }
+
+            event.getDrops().add(
+                    item.clone()
+            );
+        }
     }
 
     /*
      * ==========================================================
-     * PLAYER ATTACKER RESOLUTION
+     * ATTACKER RESOLUTION
      * ==========================================================
      */
 
     /**
      * Resolves the actual Player responsible for damage.
      *
-     * <p>Supported:</p>
+     * <p>
+     * Supported:
      *
-     * <ul>
-     *     <li>Player</li>
-     *     <li>Player-owned Projectile</li>
-     * </ul>
+     * <pre>
+     * Player
+     * Player-owned Projectile
+     * </pre>
      *
-     * <p>Not supported:</p>
-     *
-     * <ul>
-     *     <li>Iron Golem</li>
-     *     <li>Zombie</li>
-     *     <li>Skeleton</li>
-     *     <li>Unowned projectile</li>
-     *     <li>Other mobs</li>
-     * </ul>
+     * <p>
+     * Unsupported entities return null.
+     * </p>
      */
     private Player resolveAttackingPlayer(
             Entity damager
     ) {
 
+        /*
+         * Direct player.
+         */
         if (damager instanceof Player player) {
 
             return player;
         }
 
+        /*
+         * Projectile.
+         */
         if (damager instanceof Projectile projectile) {
 
             ProjectileSource source =
@@ -709,21 +770,15 @@ public final class CombatListener implements Listener {
      * ==========================================================
      */
 
-    private boolean isCombatDebugEnabled() {
-
-        return plugin.getConfig().getBoolean(
-                "debug.combat",
-                false
-        );
-    }
-
     private void debugDamageReceived(
             EntityDamageByEntityEvent event,
             Player victim
     ) {
 
-        if (!isCombatDebugEnabled()) {
-
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
             return;
         }
 
@@ -731,8 +786,10 @@ public final class CombatListener implements Listener {
                 "[CombatDamage] received: "
                         + "damager="
                         + event.getDamager()
-                        .getType()
-                        + " -> victim=PLAYER"
+                                .getType()
+                        + " -> victim=PLAYER("
+                        + victim.getName()
+                        + ")"
         );
     }
 
@@ -740,8 +797,10 @@ public final class CombatListener implements Listener {
             String reason
     ) {
 
-        if (!isCombatDebugEnabled()) {
-
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
             return;
         }
 
@@ -751,23 +810,36 @@ public final class CombatListener implements Listener {
         );
     }
 
-    private void debugCombatTag(
+    private void debugCombatResult(
             Player attacker,
-            Player victim
+            Player victim,
+            CombatResult result
     ) {
 
-        if (!isCombatDebugEnabled()) {
-
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
             return;
         }
 
         boolean attackerTagged =
-                combatManager.isInCombat(
+                combatService.isInCombat(
                         attacker.getUniqueId()
                 );
 
         boolean victimTagged =
-                combatManager.isInCombat(
+                combatService.isInCombat(
+                        victim.getUniqueId()
+                );
+
+        long attackerRemaining =
+                combatService.getRemainingCombatMillis(
+                        attacker.getUniqueId()
+                );
+
+        long victimRemaining =
+                combatService.getRemainingCombatMillis(
                         victim.getUniqueId()
                 );
 
@@ -776,21 +848,36 @@ public final class CombatListener implements Listener {
                         + attacker.getName()
                         + " -> "
                         + victim.getName()
+                        + " | result="
+                        + result
                         + " | attacker="
                         + attackerTagged
                         + " | victim="
                         + victimTagged
                         + " | attackerRemaining="
-                        + combatManager.getRemainingSeconds(
-                                attacker.getUniqueId()
+                        + formatSeconds(
+                                attackerRemaining
                         )
                         + "s"
                         + " | victimRemaining="
-                        + combatManager.getRemainingSeconds(
-                                victim.getUniqueId()
+                        + formatSeconds(
+                                victimRemaining
                         )
                         + "s"
         );
+    }
+
+    private long formatSeconds(
+            long millis
+    ) {
+
+        if (millis <= 0L) {
+            return 0L;
+        }
+
+        return (
+                millis + 999L
+        ) / 1000L;
     }
 
     private void debugDeath(
@@ -799,8 +886,10 @@ public final class CombatListener implements Listener {
             String state
     ) {
 
-        if (!isCombatDebugEnabled()) {
-
+        if (!plugin.getConfig().getBoolean(
+                "debug.combat",
+                false
+        )) {
             return;
         }
 
@@ -812,7 +901,7 @@ public final class CombatListener implements Listener {
                         + " | context="
                         + (
                         context == null
-                                ? "UNKNOWN"
+                                ? "NOT_EVALUATED"
                                 : context
                 )
         );
