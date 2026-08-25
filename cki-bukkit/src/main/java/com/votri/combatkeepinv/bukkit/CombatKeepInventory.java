@@ -17,10 +17,6 @@ import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -34,18 +30,24 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.1.0-SNAPSHOT-build3";
+            "1.1.0-SNAPSHOT-build4";
 
-    private static final int CONFIG_VERSION = 2;
+    /*
+     * Config schema version.
+     *
+     * Version 3 removes the old PvP toggle configuration
+     * and uses the current CombatTag-based architecture.
+     */
+    private static final int CONFIG_VERSION = 3;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
 
     /*
-     * PvPManager is detection-only.
+     * Detection only.
      *
-     * This is NOT a PvPManager hook.
-     * CKI does not call PvPManager API.
+     * CKI does NOT hook PvPManager and does not use
+     * PvPManager's combat state.
      */
     private PvPManagerDetector pvpManagerDetector;
 
@@ -105,7 +107,7 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         /*
          * ==========================================================
-         * Initialize Bukkit components
+         * Initialize components
          * ==========================================================
          */
 
@@ -118,19 +120,18 @@ public final class CombatKeepInventory extends JavaPlugin {
          *
          * Detection only.
          *
-         * CKI does NOT hook PvPManager and does not use its
-         * combat state.
-         *
-         * If PvPManager is not installed, nothing is logged.
+         * If PvPManager is installed, the detector may warn.
+         * If it is not installed, nothing is logged.
          */
 
         if (pvpManagerDetector != null) {
+
             pvpManagerDetector.logWarningIfDetected();
         }
 
         /*
          * ==========================================================
-         * Core API
+         * Public Core API
          * ==========================================================
          */
 
@@ -138,15 +139,19 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         /*
          * ==========================================================
-         * Combat listeners
+         * Bukkit listeners
          * ==========================================================
+         *
+         * CombatListener uses Bukkit @EventHandler methods.
+         *
+         * Do NOT use EventExecutor/registerEvent here.
          */
 
         registerCombatListeners();
 
         /*
          * ==========================================================
-         * Commands
+         * Command
          * ==========================================================
          */
 
@@ -165,14 +170,15 @@ public final class CombatKeepInventory extends JavaPlugin {
     public void onDisable() {
 
         /*
-         * Unregister public API.
+         * Unregister public API first.
          */
         unregisterApi();
 
         /*
-         * Clear combat state.
+         * Clear all active CombatTags.
          */
         if (combatManager != null) {
+
             combatManager.clear();
         }
 
@@ -180,10 +186,10 @@ public final class CombatKeepInventory extends JavaPlugin {
          * Release references.
          */
         combatListener = null;
-        pvpManagerDetector = null;
-        worldGuardHook = null;
         combatService = null;
         combatManager = null;
+        worldGuardHook = null;
+        pvpManagerDetector = null;
 
         getLogger().info(
                 "CombatKeepInventory "
@@ -227,6 +233,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private String getDetectedPlatformName() {
 
         if (platformInfo == null) {
+
             return "unknown";
         }
 
@@ -245,10 +252,12 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (!strict) {
+
             return true;
         }
 
         if ("auto".equals(selectedPlatform)) {
+
             return true;
         }
 
@@ -270,7 +279,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                         * 1000L;
 
         /*
-         * Combat manager.
+         * CombatManager
          */
 
         if (combatManager == null) {
@@ -288,7 +297,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         /*
-         * Bukkit CombatService.
+         * Bukkit CombatService
          */
 
         if (combatService == null) {
@@ -301,7 +310,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         /*
-         * WorldGuard detection.
+         * WorldGuard detection/integration.
          */
 
         if (worldGuardHook == null) {
@@ -380,6 +389,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private void registerCombatListeners() {
 
         if (combatListener != null) {
+
             return;
         }
 
@@ -390,75 +400,18 @@ public final class CombatKeepInventory extends JavaPlugin {
                         worldGuardHook
                 );
 
-        EventPriority priority =
-                getListenerPriority();
-
         /*
-         * Entity damage listener.
+         * CombatListener owns its @EventHandler priorities.
          */
-
-        EventExecutor damageExecutor =
-                (registeredListener, event) -> {
-
-                    if (event
-                            instanceof EntityDamageByEntityEvent damage) {
-
-                        combatListener
-                                .onEntityDamageByEntity(
-                                        damage
-                                );
-                    }
-                };
-
-        /*
-         * Player death listener.
-         */
-
-        EventExecutor deathExecutor =
-                (registeredListener, event) -> {
-
-                    if (event
-                            instanceof PlayerDeathEvent death) {
-
-                        combatListener
-                                .onPlayerDeath(
-                                        death
-                                );
-                    }
-                };
-
-        /*
-         * Register damage listener.
-         */
-
         getServer()
                 .getPluginManager()
-                .registerEvent(
-                        EntityDamageByEntityEvent.class,
+                .registerEvents(
                         combatListener,
-                        priority,
-                        damageExecutor,
-                        this
-                );
-
-        /*
-         * Register death listener.
-         */
-
-        getServer()
-                .getPluginManager()
-                .registerEvent(
-                        PlayerDeathEvent.class,
-                        combatListener,
-                        priority,
-                        deathExecutor,
                         this
                 );
 
         getLogger().info(
-                "Combat listeners registered at "
-                        + priority
-                        + " priority."
+                "Combat listeners registered."
         );
     }
 
@@ -493,46 +446,6 @@ public final class CombatKeepInventory extends JavaPlugin {
     public PvPManagerDetector getPvPManagerDetector() {
 
         return pvpManagerDetector;
-    }
-
-    /*
-     * ==========================================================
-     * Listener priority
-     * ==========================================================
-     */
-
-    public EventPriority getListenerPriority() {
-
-        String value =
-                getConfig().getString(
-                        "listener-priority",
-                        "HIGHEST"
-                );
-
-        if (value == null
-                || value.isBlank()) {
-
-            return EventPriority.HIGHEST;
-        }
-
-        try {
-
-            return EventPriority.valueOf(
-                    value
-                            .trim()
-                            .toUpperCase(Locale.ROOT)
-            );
-
-        } catch (IllegalArgumentException exception) {
-
-            getLogger().warning(
-                    "Invalid listener-priority '"
-                            + value
-                            + "'. Using HIGHEST."
-            );
-
-            return EventPriority.HIGHEST;
-        }
     }
 
     /*
@@ -578,6 +491,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (!configFile.exists()) {
+
             return;
         }
 
@@ -593,6 +507,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (oldVersion >= CONFIG_VERSION) {
+
             return;
         }
 
@@ -714,6 +629,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     ) {
 
         if (messages == null) {
+
             return color(fallback);
         }
 
@@ -724,6 +640,7 @@ public final class CombatKeepInventory extends JavaPlugin {
                 );
 
         if (value == null) {
+
             value = fallback;
         }
 
@@ -735,6 +652,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     ) {
 
         if (messages == null) {
+
             return List.of();
         }
 
@@ -763,6 +681,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     ) {
 
         if (text == null) {
+
             return "";
         }
 
@@ -797,11 +716,8 @@ public final class CombatKeepInventory extends JavaPlugin {
         initializeComponents();
 
         /*
-         * Detection only.
-         *
-         * No PvPManager API is called.
+         * PvPManager detection only.
          */
-
         if (pvpManagerDetector != null) {
 
             pvpManagerDetector.logWarningIfDetected();
@@ -812,8 +728,9 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
 
         getLogger().info(
-                "Listener priority configured as "
-                        + getListenerPriority()
+                "Combat duration: "
+                        + getCombatDurationSeconds()
+                        + " seconds."
         );
     }
 
@@ -828,6 +745,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     ) {
 
         if (world == null) {
+
             return true;
         }
 
@@ -937,15 +855,6 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
 
         getLogger().info(
-                "Listener priority: "
-                        + getListenerPriority()
-        );
-
-        /*
-         * WorldGuard.
-         */
-
-        getLogger().info(
                 "WorldGuard: "
                         + (
                         worldGuardHook != null
@@ -956,11 +865,10 @@ public final class CombatKeepInventory extends JavaPlugin {
         );
 
         /*
-         * PvPManager intentionally has no startup
-         * NOT INSTALLED message.
+         * PvPManager intentionally does not output
+         * "NOT INSTALLED".
          *
-         * PvPManagerDetector only logs when PvPManager
-         * is actually detected.
+         * PvPManagerDetector only reports when detected.
          */
     }
 }
