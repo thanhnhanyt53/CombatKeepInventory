@@ -1,115 +1,217 @@
 package com.votri.combatkeepinv.bukkit.combat;
 
+import com.votri.combatkeepinv.core.api.CombatTag;
+
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Owns the CombatTag state for every player.
+ * Owns the runtime CombatTag state.
  *
- * <p>CombatTag is per-player state, not a fixed attacker/victim pair.</p>
+ * <p>CombatManager is the single source of truth for Bukkit's
+ * active CombatTag state.</p>
  *
- * <p>Every valid player-vs-player hit overwrites the player's
- * expiration timestamp.</p>
+ * <p>The manager does not know anything about Bukkit events,
+ * PvPManager, WorldGuard or death handling.</p>
  */
 public final class CombatManager {
 
-    private final Map<UUID, Long> combatUntil =
+    private final Map<UUID, CombatEntry> combatEntries =
             new ConcurrentHashMap<>();
 
     private volatile long durationMillis;
 
-    public CombatManager(long durationMillis) {
+    public CombatManager(
+            long durationMillis
+    ) {
         setDurationMillis(durationMillis);
     }
 
-    public void setDurationMillis(long durationMillis) {
+    /**
+     * Sets the duration used for newly created or refreshed tags.
+     *
+     * @param durationMillis duration in milliseconds
+     */
+    public void setDurationMillis(
+            long durationMillis
+    ) {
+
         this.durationMillis =
-                Math.max(1000L, durationMillis);
+                Math.max(
+                        1000L,
+                        durationMillis
+                );
     }
 
+    /**
+     * Returns the configured CombatTag duration.
+     *
+     * @return duration in milliseconds
+     */
     public long getDurationMillis() {
         return durationMillis;
     }
 
     /**
-     * Creates or refreshes a CombatTag.
+     * Starts a new CombatTag for one player.
+     *
+     * <p>If the player already has a tag, the existing tag is
+     * refreshed instead.</p>
+     *
+     * @param player player UUID
+     * @param opponent opponent UUID
      */
-    public void tag(UUID player) {
+    public void start(
+            UUID player,
+            UUID opponent
+    ) {
+
         if (player == null) {
             return;
         }
 
         long expiresAt =
-                System.currentTimeMillis() + durationMillis;
+                System.currentTimeMillis()
+                        + durationMillis;
 
-        combatUntil.put(player, expiresAt);
+        combatEntries.put(
+                player,
+                new CombatEntry(
+                        player,
+                        opponent,
+                        expiresAt
+                )
+        );
     }
 
     /**
-     * Creates or refreshes CombatTag for both players.
+     * Refreshes an existing CombatTag.
      *
-     * <p>Both timestamps are independently reset.</p>
+     * <p>If no active tag exists, this method creates one.
+     * This makes the manager resilient to race/expiry boundaries.</p>
+     *
+     * @param player player UUID
+     * @param opponent latest opponent UUID
      */
-    public void tag(UUID first, UUID second) {
-        if (first == null || second == null) {
-            return;
-        }
+    public void refresh(
+            UUID player,
+            UUID opponent
+    ) {
 
-        if (first.equals(second)) {
-            return;
-        }
-
-        tag(first);
-        tag(second);
-    }
-
-    /**
-     * Returns true only while the player's CombatTag is active.
-     */
-    public boolean isInCombat(UUID player) {
         if (player == null) {
-            return false;
-        }
-
-        Long expiresAt =
-                combatUntil.get(player);
-
-        if (expiresAt == null) {
-            return false;
+            return;
         }
 
         long now =
                 System.currentTimeMillis();
 
-        if (expiresAt <= now) {
-            combatUntil.remove(player, expiresAt);
-            return false;
-        }
+        long expiresAt =
+                now + durationMillis;
 
-        return true;
+        combatEntries.put(
+                player,
+                new CombatEntry(
+                        player,
+                        opponent,
+                        expiresAt
+                )
+        );
     }
 
     /**
-     * Returns remaining CombatTag time in milliseconds.
+     * Starts or refreshes CombatTag for both players.
+     *
+     * <p>This is retained as the low-level operation used by
+     * Bukkit combat handling.</p>
+     *
+     * @param first first player
+     * @param second second player
      */
-    public long getRemainingMillis(UUID player) {
-        if (player == null) {
-            return 0L;
+    public void tag(
+            UUID first,
+            UUID second
+    ) {
+
+        if (first == null
+                || second == null
+                || first.equals(second)) {
+
+            return;
         }
 
-        Long expiresAt =
-                combatUntil.get(player);
+        start(
+                first,
+                second
+        );
 
-        if (expiresAt == null) {
+        start(
+                second,
+                first
+        );
+    }
+
+    /**
+     * Returns whether the player currently has an active tag.
+     *
+     * @param player player UUID
+     * @return true when active
+     */
+    public boolean isInCombat(
+            UUID player
+    ) {
+
+        return getEntry(player) != null;
+    }
+
+    /**
+     * Returns the public CombatTag representation.
+     *
+     * @param player player UUID
+     * @return active tag, or null
+     */
+    public CombatTag getCombatTag(
+            UUID player
+    ) {
+
+        CombatEntry entry =
+                getEntry(player);
+
+        if (entry == null) {
+            return null;
+        }
+
+        return entry;
+    }
+
+    /**
+     * Returns the remaining duration.
+     *
+     * @param player player UUID
+     * @return remaining milliseconds
+     */
+    public long getRemainingMillis(
+            UUID player
+    ) {
+
+        CombatEntry entry =
+                getEntry(player);
+
+        if (entry == null) {
             return 0L;
         }
 
         long remaining =
-                expiresAt - System.currentTimeMillis();
+                entry.expiresAt
+                        - System.currentTimeMillis();
 
         if (remaining <= 0L) {
-            combatUntil.remove(player, expiresAt);
+
+            combatEntries.remove(
+                    player,
+                    entry
+            );
+
             return 0L;
         }
 
@@ -117,53 +219,198 @@ public final class CombatManager {
     }
 
     /**
-     * Returns remaining CombatTag time in seconds,
-     * rounded upward.
+     * Returns remaining duration in seconds, rounded up.
+     *
+     * @param player player UUID
+     * @return remaining seconds
      */
-    public long getRemainingSeconds(UUID player) {
+    public long getRemainingSeconds(
+            UUID player
+    ) {
+
         long remaining =
-                getRemainingMillis(player);
+                getRemainingMillis(
+                        player
+                );
 
         if (remaining <= 0L) {
             return 0L;
         }
 
-        return (remaining + 999L) / 1000L;
+        return (
+                remaining + 999L
+        ) / 1000L;
+    }
+
+    /**
+     * Returns the last opponent.
+     *
+     * @param player player UUID
+     * @return opponent UUID, or null
+     */
+    public UUID getLastOpponent(
+            UUID player
+    ) {
+
+        CombatEntry entry =
+                getEntry(player);
+
+        if (entry == null) {
+            return null;
+        }
+
+        return entry.lastOpponent;
     }
 
     /**
      * Removes a player's CombatTag.
+     *
+     * @param player player UUID
      */
-    public void remove(UUID player) {
+    public void remove(
+            UUID player
+    ) {
+
         if (player != null) {
-            combatUntil.remove(player);
+
+            combatEntries.remove(
+                    player
+            );
         }
     }
 
     /**
-     * Removes all expired entries.
+     * Removes all expired CombatTags.
      */
     public void cleanupExpired() {
+
         long now =
                 System.currentTimeMillis();
 
-        combatUntil.entrySet().removeIf(
-                entry -> entry.getValue() <= now
-        );
+        combatEntries.entrySet()
+                .removeIf(
+                        entry ->
+                                entry.getValue()
+                                        .expiresAt
+                                        <= now
+                );
     }
 
     /**
      * Returns the number of active CombatTags.
+     *
+     * @return active tag count
      */
     public int size() {
+
         cleanupExpired();
-        return combatUntil.size();
+
+        return combatEntries.size();
     }
 
     /**
-     * Clears all CombatTags.
+     * Removes every CombatTag.
      */
     public void clear() {
-        combatUntil.clear();
+
+        combatEntries.clear();
+    }
+
+    /**
+     * Gets an active entry.
+     *
+     * <p>Expired entries are removed atomically.</p>
+     */
+    private CombatEntry getEntry(
+            UUID player
+    ) {
+
+        if (player == null) {
+            return null;
+        }
+
+        CombatEntry entry =
+                combatEntries.get(player);
+
+        if (entry == null) {
+            return null;
+        }
+
+        long now =
+                System.currentTimeMillis();
+
+        if (entry.expiresAt <= now) {
+
+            combatEntries.remove(
+                    player,
+                    entry
+            );
+
+            return null;
+        }
+
+        return entry;
+    }
+
+    /**
+     * Immutable runtime representation of a CombatTag.
+     */
+    private static final class CombatEntry
+            implements CombatTag {
+
+        private final UUID playerId;
+        private final UUID lastOpponent;
+        private final long expiresAt;
+
+        private CombatEntry(
+                UUID playerId,
+                UUID lastOpponent,
+                long expiresAt
+        ) {
+
+            this.playerId =
+                    playerId;
+
+            this.lastOpponent =
+                    lastOpponent;
+
+            this.expiresAt =
+                    expiresAt;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return playerId;
+        }
+
+        @Override
+        public boolean isActive() {
+
+            return expiresAt >
+                    System.currentTimeMillis();
+        }
+
+        @Override
+        public long getRemainingMillis() {
+
+            long remaining =
+                    expiresAt
+                            - System.currentTimeMillis();
+
+            return Math.max(
+                    0L,
+                    remaining
+            );
+        }
+
+        @Override
+        public long getExpiresAt() {
+            return expiresAt;
+        }
+
+        @Override
+        public UUID getLastOpponent() {
+            return lastOpponent;
+        }
     }
 }

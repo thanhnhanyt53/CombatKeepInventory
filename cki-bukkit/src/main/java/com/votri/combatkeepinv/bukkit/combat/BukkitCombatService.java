@@ -4,6 +4,7 @@ import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.api.CombatState;
+import com.votri.combatkeepinv.core.api.CombatTag;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
 import com.votri.combatkeepinv.core.api.InventoryPolicy;
@@ -12,17 +13,14 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Bukkit implementation of the core CombatService contract.
+ * Bukkit implementation of the public CombatService API.
  *
- * <p>
- * CombatManager owns the actual CombatTag state.
- * CombatListener determines when a Bukkit damage event
- * represents valid player-vs-player combat.
- * </p>
+ * <p>This class adapts the platform-independent CKI API to
+ * Bukkit while keeping CombatManager as the single owner of
+ * CombatTag state.</p>
  *
- * <p>
- * CKI does not own a global PvP on/off switch.
- * </p>
+ * <p>CKI does not own a PvP enable/disable switch.
+ * PvPManager and other PvP plugins are independent systems.</p>
  */
 public final class BukkitCombatService
         implements CombatService {
@@ -34,6 +32,7 @@ public final class BukkitCombatService
             CombatKeepInventory plugin,
             CombatManager combatManager
     ) {
+
         this.plugin =
                 Objects.requireNonNull(
                         plugin,
@@ -47,66 +46,242 @@ public final class BukkitCombatService
                 );
     }
 
+    /*
+     * ==========================================================
+     * SERVICE STATE
+     * ==========================================================
+     */
+
     /**
-     * Creates or refreshes CombatTag for both players.
+     * Returns whether CKI's combat system is enabled.
+     *
+     * <p>This is NOT a PvP toggle.</p>
+     */
+    @Override
+    public boolean isEnabled() {
+
+        return plugin.getConfig().getBoolean(
+                "combat.enabled",
+                true
+        );
+    }
+
+    /*
+     * ==========================================================
+     * START COMBAT
+     * ==========================================================
+     */
+
+    /**
+     * Starts CombatTag for both players.
+     *
+     * <p>This method is intended for a valid player-originated
+     * attack detected by the Bukkit event layer.</p>
      */
     @Override
     public CombatResult startCombat(
             UUID attacker,
             UUID victim
     ) {
-        if (attacker == null
-                || victim == null
-                || attacker.equals(victim)) {
+
+        if (!isValidPair(
+                attacker,
+                victim
+        )) {
 
             return CombatResult.INVALID_ARGUMENT;
         }
 
-        /*
-         * This controls CKI CombatTag processing itself.
-         * It is NOT a server PvP toggle.
-         */
-        if (!plugin.getConfig().getBoolean(
-                "combat.enabled",
-                true
-        )) {
+        if (!isEnabled()) {
             return CombatResult.DISABLED;
         }
 
-        combatManager.tag(
+        if (isWorldDisabled(
+                attacker
+        ) || isWorldDisabled(
+                victim
+        )) {
+
+            return CombatResult.WORLD_DISABLED;
+        }
+
+        boolean attackerAlready =
+                combatManager.isInCombat(
+                        attacker
+                );
+
+        boolean victimAlready =
+                combatManager.isInCombat(
+                        victim
+                );
+
+        /*
+         * New combat state for both players.
+         *
+         * Each player's latest opponent is the other player.
+         */
+        combatManager.start(
                 attacker,
                 victim
+        );
+
+        combatManager.start(
+                victim,
+                attacker
+        );
+
+        /*
+         * If both were already tagged, this operation is
+         * semantically a refresh rather than a new combat.
+         *
+         * The actual timer has still been reset.
+         */
+        if (attackerAlready
+                && victimAlready) {
+
+            return CombatResult.ALREADY_IN_COMBAT;
+        }
+
+        return CombatResult.SUCCESS;
+    }
+
+    /*
+     * ==========================================================
+     * REFRESH COMBAT
+     * ==========================================================
+     */
+
+    /**
+     * Refreshes CombatTag for both players.
+     *
+     * <p>Every valid player hit should call this method when
+     * both participants are already in combat.</p>
+     */
+    @Override
+    public CombatResult refreshCombat(
+            UUID attacker,
+            UUID victim
+    ) {
+
+        if (!isValidPair(
+                attacker,
+                victim
+        )) {
+
+            return CombatResult.INVALID_ARGUMENT;
+        }
+
+        if (!isEnabled()) {
+            return CombatResult.DISABLED;
+        }
+
+        if (isWorldDisabled(
+                attacker
+        ) || isWorldDisabled(
+                victim
+        )) {
+
+            return CombatResult.WORLD_DISABLED;
+        }
+
+        combatManager.refresh(
+                attacker,
+                victim
+        );
+
+        combatManager.refresh(
+                victim,
+                attacker
         );
 
         return CombatResult.SUCCESS;
     }
 
+    /*
+     * ==========================================================
+     * END COMBAT
+     * ==========================================================
+     */
+
     @Override
     public CombatResult endCombat(
             UUID player
     ) {
+
         if (player == null) {
             return CombatResult.INVALID_ARGUMENT;
         }
 
-        if (!combatManager.isInCombat(player)) {
+        if (!combatManager.isInCombat(
+                player
+        )) {
+
             return CombatResult.NOT_IN_COMBAT;
         }
 
-        combatManager.remove(player);
+        combatManager.remove(
+                player
+        );
 
         return CombatResult.SUCCESS;
     }
 
+    /**
+     * Forcefully removes CombatTag.
+     *
+     * <p>This method intentionally behaves like endCombat,
+     * but semantically communicates that the caller is
+     * deliberately overriding the combat state.</p>
+     */
     @Override
-    public boolean isInCombat(UUID player) {
+    public CombatResult forceEndCombat(
+            UUID player
+    ) {
+
+        if (player == null) {
+            return CombatResult.INVALID_ARGUMENT;
+        }
+
+        boolean active =
+                combatManager.isInCombat(
+                        player
+                );
+
+        combatManager.remove(
+                player
+        );
+
+        return active
+                ? CombatResult.SUCCESS
+                : CombatResult.NOT_IN_COMBAT;
+    }
+
+    /*
+     * ==========================================================
+     * STATE
+     * ==========================================================
+     */
+
+    @Override
+    public boolean isInCombat(
+            UUID player
+    ) {
+
         return player != null
-                && combatManager.isInCombat(player);
+                && combatManager.isInCombat(
+                        player
+                );
     }
 
     @Override
-    public CombatState getCombatState(UUID player) {
-        if (!isInCombat(player)) {
+    public CombatState getCombatState(
+            UUID player
+    ) {
+
+        if (!isInCombat(
+                player
+        )) {
+
             return CombatState.SAFE;
         }
 
@@ -114,21 +289,58 @@ public final class BukkitCombatService
     }
 
     @Override
-    public long getRemainingCombatMillis(UUID player) {
-        return combatManager.getRemainingMillis(player);
+    public CombatTag getCombatTag(
+            UUID player
+    ) {
+
+        if (player == null) {
+            return null;
+        }
+
+        return combatManager.getCombatTag(
+                player
+        );
     }
 
+    @Override
+    public long getRemainingCombatMillis(
+            UUID player
+    ) {
+
+        if (player == null) {
+            return 0L;
+        }
+
+        return combatManager.getRemainingMillis(
+                player
+        );
+    }
+
+    /*
+     * ==========================================================
+     * DEATH POLICY
+     * ==========================================================
+     */
+
     /**
-     * Evaluates death policy.
+     * Evaluates the inventory policy for a death.
      *
-     * <p>CombatTag is always checked before DeathContext.</p>
+     * <p>The order is intentionally:</p>
+     *
+     * <ol>
+     *     <li>Check active CombatTag.</li>
+     *     <li>If active -> DROP.</li>
+     *     <li>Only otherwise inspect DeathContext.</li>
+     * </ol>
      */
     @Override
     public DeathResult evaluateDeath(
             UUID player,
             DeathContext context
     ) {
+
         if (player == null) {
+
             return new DeathResult(
                     InventoryPolicy.KEEP,
                     true,
@@ -138,16 +350,17 @@ public final class BukkitCombatService
 
         /*
          * ======================================================
-         * 1. COMBAT TAG FIRST
+         * STEP 1 — COMBAT TAG
          * ======================================================
-         *
-         * If active, the death cause is irrelevant.
          */
-        if (combatManager.isInCombat(player)) {
+
+        if (combatManager.isInCombat(
+                player
+        )) {
 
             boolean keepExperience =
                     plugin.getConfig().getBoolean(
-                            "death.keep-experience",
+                            "inventory.keep-experience",
                             true
                     );
 
@@ -160,26 +373,25 @@ public final class BukkitCombatService
 
         /*
          * ======================================================
-         * 2. NO COMBAT TAG
+         * STEP 2 — FINAL DEATH CONTEXT
          * ======================================================
-         *
-         * Only now can DeathContext determine the policy.
          */
+
         boolean pvpDeath =
                 context == DeathContext.PLAYER
                         || context == DeathContext.PROJECTILE;
 
         if (pvpDeath) {
 
-            boolean drop =
+            boolean keepExperience =
                     plugin.getConfig().getBoolean(
-                            "death.pvp-kill-drops",
+                            "inventory.keep-experience",
                             true
                     );
 
-            boolean keepExperience =
+            boolean drop =
                     plugin.getConfig().getBoolean(
-                            "death.keep-experience",
+                            "death.pvp-kill-drops",
                             true
                     );
 
@@ -194,9 +406,10 @@ public final class BukkitCombatService
 
         /*
          * ======================================================
-         * 3. NO COMBAT TAG + PVE
+         * STEP 3 — PVE / ENVIRONMENT
          * ======================================================
          */
+
         boolean keep =
                 plugin.getConfig().getBoolean(
                         "death.pve-keeps-inventory",
@@ -205,7 +418,7 @@ public final class BukkitCombatService
 
         boolean keepExperience =
                 plugin.getConfig().getBoolean(
-                        "death.keep-experience",
+                        "inventory.keep-experience",
                         true
                 );
 
@@ -219,24 +432,48 @@ public final class BukkitCombatService
     }
 
     /*
-     * The current cki-core CombatService contract still
-     * contains these legacy methods.
-     *
-     * They are kept only for API compatibility.
-     * CombatTag does NOT use them.
+     * ==========================================================
+     * HELPERS
+     * ==========================================================
      */
 
-    @Override
-    public boolean isPvPEnabled() {
-        return true;
+    private boolean isValidPair(
+            UUID attacker,
+            UUID victim
+    ) {
+
+        return attacker != null
+                && victim != null
+                && !attacker.equals(victim);
     }
 
-    @Override
-    public void setPvPEnabled(boolean enabled) {
-        /*
-         * Intentionally ignored.
-         *
-         * CKI does not own global PvP state.
-         */
+    /**
+     * Checks whether the player's current Bukkit world is
+     * disabled for CKI.
+     *
+     * <p>The UUID itself cannot determine the world, therefore
+     * Bukkit's player registry is used here.</p>
+     */
+    private boolean isWorldDisabled(
+            UUID player
+    ) {
+
+        if (player == null) {
+            return true;
+        }
+
+        org.bukkit.entity.Player bukkitPlayer =
+                plugin.getServer()
+                        .getPlayer(
+                                player
+                        );
+
+        if (bukkitPlayer == null) {
+            return false;
+        }
+
+        return plugin.isWorldDisabled(
+                bukkitPlayer.getWorld()
+        );
     }
 }
