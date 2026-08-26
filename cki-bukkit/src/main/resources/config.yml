@@ -1,0 +1,113 @@
+# ============================================================
+# CombatKeepInventory
+# ============================================================
+
+config-version: 2
+
+# ============================================================
+# Platform
+# ============================================================
+
+platform:
+
+  # auto = automatically detect Bukkit/Paper/Purpur/etc.
+  mode: auto
+
+  # If true, the selected platform must exactly match
+  # the detected platform.
+  strict: false
+
+
+# ============================================================
+# Combat
+# ============================================================
+
+combat:
+
+  # Enables CombatTag processing.
+  enabled: true
+
+  # CombatTag duration in seconds.
+  duration-seconds: 10
+
+
+# ============================================================
+# Death / Inventory
+# ============================================================
+
+death:
+
+  # When a player dies without an active CombatTag
+  # and the final death is caused by another player,
+  # their inventory is dropped.
+  pvp-kill-drops: true
+
+  # When a player dies without an active CombatTag
+  # and the death is caused by mobs/environment,
+  # keep their inventory.
+  pve-keeps-inventory: true
+
+  # Experience behavior for normal deaths.
+  keep-experience: true
+
+
+# ============================================================
+# Inventory
+# ============================================================
+
+inventory:
+
+  # Experience behavior while processing combat death.
+  keep-experience: true
+
+
+# ============================================================
+# Worlds
+# ============================================================
+
+worlds:
+
+  # Enables disabled-world checking.
+  enabled: true
+
+  # CombatKeepInventory will completely ignore combat/death
+  # processing in these worlds.
+  disabled-worlds: []
+
+
+# ============================================================
+# Listener
+# ============================================================
+
+# Bukkit event priority.
+#
+# Possible:
+# LOWEST
+# LOW
+# NORMAL
+# HIGH
+# HIGHEST
+# MONITOR
+#
+# HIGHEST is recommended because CKI should observe the
+# final damage/death state after most other plugins.
+listener-priority: HIGHEST
+
+
+# ============================================================
+# Debug
+# ============================================================
+
+debug:
+
+  # CombatTag creation / refresh information.
+  combat: false
+
+  # Damage processing information.
+  damage: false
+
+  # Death evaluation information.
+  death: false
+
+  # Proxy bridge information.
+  bridge: false
