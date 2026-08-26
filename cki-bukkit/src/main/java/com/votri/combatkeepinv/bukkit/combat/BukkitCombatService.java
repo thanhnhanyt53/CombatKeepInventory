@@ -14,6 +14,9 @@ import java.util.UUID;
 
 /**
  * Bukkit implementation of the public CKI CombatService.
+ *
+ * <p>This class contains the Bukkit-facing service layer.
+ * CombatManager remains the authoritative CombatTag owner.</p>
  */
 public final class BukkitCombatService
         implements CombatService {
@@ -45,10 +48,10 @@ public final class BukkitCombatService
             UUID victim
     ) {
 
-        if (attacker == null
-                || victim == null
-                || attacker.equals(victim)) {
-
+        if (!isValidPair(
+                attacker,
+                victim
+        )) {
             return CombatResult.INVALID_ARGUMENT;
         }
 
@@ -56,23 +59,13 @@ public final class BukkitCombatService
             return CombatResult.DISABLED;
         }
 
-        boolean alreadyInCombat =
-                combatManager.isInCombat(
-                        attacker
-                )
-                        && combatManager.isInCombat(
-                        victim
-                );
-
-        if (alreadyInCombat) {
-
-            return refreshCombat(
-                    attacker,
-                    victim
-            );
-        }
-
-        combatManager.start(
+        /*
+         * A valid player-vs-player interaction is enough.
+         *
+         * CombatManager decides whether this becomes START
+         * or REFRESH.
+         */
+        combatManager.tag(
                 attacker,
                 victim
         );
@@ -86,10 +79,10 @@ public final class BukkitCombatService
             UUID victim
     ) {
 
-        if (attacker == null
-                || victim == null
-                || attacker.equals(victim)) {
-
+        if (!isValidPair(
+                attacker,
+                victim
+        )) {
             return CombatResult.INVALID_ARGUMENT;
         }
 
@@ -117,15 +110,14 @@ public final class BukkitCombatService
         if (!combatManager.isInCombat(
                 player
         )) {
-
             return CombatResult.NOT_IN_COMBAT;
         }
 
-        combatManager.remove(
+        return combatManager.remove(
                 player
-        );
-
-        return CombatResult.SUCCESS;
+        )
+                ? CombatResult.SUCCESS
+                : CombatResult.NOT_IN_COMBAT;
     }
 
     @Override
@@ -140,15 +132,14 @@ public final class BukkitCombatService
         if (!combatManager.isInCombat(
                 player
         )) {
-
             return CombatResult.NOT_IN_COMBAT;
         }
 
-        combatManager.forceRemove(
+        return combatManager.forceRemove(
                 player
-        );
-
-        return CombatResult.SUCCESS;
+        )
+                ? CombatResult.SUCCESS
+                : CombatResult.NOT_IN_COMBAT;
     }
 
     @Override
@@ -167,11 +158,9 @@ public final class BukkitCombatService
             UUID player
     ) {
 
-        if (!isInCombat(player)) {
-            return CombatState.SAFE;
-        }
-
-        return CombatState.IN_COMBAT;
+        return isInCombat(player)
+                ? CombatState.IN_COMBAT
+                : CombatState.SAFE;
     }
 
     @Override
@@ -210,7 +199,11 @@ public final class BukkitCombatService
         }
 
         /*
-         * CombatTag ALWAYS has priority.
+         * ======================================================
+         * PRIORITY 1 — ACTIVE COMBAT TAG
+         * ======================================================
+         *
+         * DeathContext is intentionally ignored here.
          */
         if (combatManager.isInCombat(
                 player
@@ -231,9 +224,11 @@ public final class BukkitCombatService
         }
 
         /*
-         * Only after CombatTag is absent do we
-         * inspect the actual death context.
+         * ======================================================
+         * PRIORITY 2 — DEATH CONTEXT
+         * ======================================================
          */
+
         boolean pvpDeath =
                 context == DeathContext.PLAYER
                         || context == DeathContext.PROJECTILE;
@@ -263,6 +258,12 @@ public final class BukkitCombatService
             );
         }
 
+        /*
+         * ======================================================
+         * PRIORITY 3 — PVE / ENVIRONMENT
+         * ======================================================
+         */
+
         boolean keep =
                 plugin.getConfig()
                         .getBoolean(
@@ -291,9 +292,19 @@ public final class BukkitCombatService
 
         return plugin.isEnabled()
                 && plugin.getConfig()
-                .getBoolean(
-                        "combat.enabled",
-                        true
-                );
+                        .getBoolean(
+                                "combat.enabled",
+                                true
+                        );
+    }
+
+    private boolean isValidPair(
+            UUID attacker,
+            UUID victim
+    ) {
+
+        return attacker != null
+                && victim != null
+                && !attacker.equals(victim);
     }
 }
