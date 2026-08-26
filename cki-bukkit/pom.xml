@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0</version>
+    </parent>
+
+    <artifactId>cki-bukkit</artifactId>
+
+    <name>CombatKeepInventory Bukkit</name>
+
+    <description>
+        CombatKeepInventory Bukkit/Paper implementation.
+    </description>
+
+    <packaging>jar</packaging>
+
+    <!-- ========================================================= -->
+    <!-- Dependencies -->
+    <!-- ========================================================= -->
+
+    <dependencies>
+
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>${paper.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <version>${worldguard.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ========================================================= -->
+    <!-- Build -->
+    <!-- ========================================================= -->
+
+    <build>
+
+        <resources>
+
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
+            </resource>
+
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
+            </resource>
+
+        </resources>
+
+        <plugins>
+
+            <!-- ================================================= -->
+            <!-- Compiler -->
+            <!-- ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================= -->
+            <!-- Shade -->
+            <!-- ================================================= -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+                        <id>shade-core</id>
+
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <minimizeJar>false</minimizeJar>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+            <!-- ================================================= -->
+            <!-- ProGuard -->
+            <!-- ================================================= -->
+
+            <plugin>
+                <groupId>com.github.wvengen</groupId>
+                <artifactId>proguard-maven-plugin</artifactId>
+
+                <dependencies>
+
+                    <dependency>
+                        <groupId>com.guardsquare</groupId>
+                        <artifactId>proguard-base</artifactId>
+                        <version>${proguard.version}</version>
+                        <scope>runtime</scope>
+                    </dependency>
+
+                </dependencies>
+
+                <executions>
+
+                    <execution>
+
+                        <id>obfuscate-production</id>
+
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>proguard</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <obfuscate>true</obfuscate>
+
+                            <attach>false</attach>
+
+                            <mappingFileName>
+                                ${project.build.finalName}-mapping.txt
+                            </mappingFileName>
+
+                            <seedFileName>
+                                ${project.build.finalName}-seeds.txt
+                            </seedFileName>
+
+                            <generateTemporaryConfigurationFile>
+                                true
+                            </generateTemporaryConfigurationFile>
+
+                            <!-- ================================= -->
+                            <!-- Java 21 runtime -->
+                            <!-- ================================= -->
+
+                            <options>
+
+                                <option>
+                                    -libraryjars ${java.home}/jmods/java.base.jmod
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Metadata -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keepattributes
+                                    RuntimeVisibleAnnotations,
+                                    RuntimeInvisibleAnnotations,
+                                    RuntimeVisibleParameterAnnotations,
+                                    RuntimeInvisibleParameterAnnotations,
+                                    AnnotationDefault,
+                                    Signature,
+                                    InnerClasses,
+                                    EnclosingMethod
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Bukkit entrypoint -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.CombatKeepInventory {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Core API -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.api.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public interface
+                                    com.votri.combatkeepinv.core.api.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.api.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Core platform -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.platform.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public interface
+                                    com.votri.combatkeepinv.core.platform.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.platform.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Core events -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.event.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Bukkit listeners -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.listener.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keepclasseswithmembers,includedescriptorclasses class * {
+                                        @org.bukkit.event.EventHandler &lt;methods&gt;;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Bukkit bridge -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.bridge.CombatStateBridge {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Bukkit API -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.api.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Commands -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.command.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Platform detector -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.platform.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Hooks -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.hook.** {
+                                        *;
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- Enum support -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -keepclassmembers enum * {
+                                        public static **[] values();
+                                        public static ** valueOf(java.lang.String);
+                                    }
+                                </option>
+
+                                <!-- ================================= -->
+                                <!-- External API warnings -->
+                                <!-- ================================= -->
+
+                                <option>
+                                    -dontwarn org.bukkit.**
+                                </option>
+
+                                <option>
+                                    -dontwarn io.papermc.paper.**
+                                </option>
+
+                                <option>
+                                    -dontwarn net.kyori.adventure.**
+                                </option>
+
+                                <option>
+                                    -dontwarn com.sk89q.worldguard.**
+                                </option>
+
+                                <option>
+                                    -dontwarn com.sk89q.worldedit.**
+                                </option>
+
+                                <option>
+                                    -dontwarn org.jetbrains.annotations.**
+                                </option>
+
+                                <option>
+                                    -dontwarn javax.annotation.**
+                                </option>
+
+                            </options>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
