@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- Project                                                 -->
+    <!-- ====================================================== -->
+
+    <groupId>com.votri</groupId>
+    <artifactId>CombatKeepInventory</artifactId>
+    <version>1.1.0</version>
+    <packaging>pom</packaging>
+
+    <name>CombatKeepInventory</name>
+    <description>
+        Combat tagging, death, inventory protection and
+        Bukkit/Velocity combat state synchronization.
+    </description>
+
+    <!-- ====================================================== -->
+    <!-- Modules                                                 -->
+    <!-- ====================================================== -->
+
+    <modules>
+        <module>cki-core</module>
+        <module>cki-bukkit</module>
+        <module>cki-velocity</module>
+    </modules>
+
+    <!-- ====================================================== -->
+    <!-- Properties                                              -->
+    <!-- ====================================================== -->
+
+    <properties>
+
+        <!-- Java -->
+        <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
+
+        <!-- Encoding -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Platform APIs -->
+        <!-- Keep the API used by the currently working source. -->
+        <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
+        <velocity.api.version>3.4.0-SNAPSHOT</velocity.api.version>
+
+        <!-- Maven plugins -->
+        <maven.compiler.version>3.14.1</maven.compiler.version>
+        <maven.jar.version>3.5.1</maven.jar.version>
+        <maven.shade.version>3.6.2</maven.shade.version>
+
+        <!-- Obfuscation -->
+        <proguard.maven.version>2.7.0</proguard.maven.version>
+        <proguard.version>7.7.0</proguard.version>
+
+        <!-- Dependencies -->
+        <worldguard.version>7.0.16</worldguard.version>
+        <snakeyaml.version>2.4</snakeyaml.version>
+
+    </properties>
+
+    <!-- ====================================================== -->
+    <!-- Repositories                                           -->
+    <!-- ====================================================== -->
+
+    <repositories>
+
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+
+        <repository>
+            <id>enginehub</id>
+            <url>https://maven.enginehub.org/repo/</url>
+        </repository>
+
+    </repositories>
+
+    <!-- ====================================================== -->
+    <!-- Plugin Management                                      -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <pluginManagement>
+
+            <plugins>
+
+                <!-- Compiler -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven.compiler.version}</version>
+
+                    <configuration>
+                        <release>${maven.compiler.release}</release>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+
+                <!-- JAR -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>${maven.jar.version}</version>
+                </plugin>
+
+                <!-- Shade -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>${maven.shade.version}</version>
+                </plugin>
+
+                <!-- ProGuard -->
+                <plugin>
+                    <groupId>com.github.wvengen</groupId>
+                    <artifactId>proguard-maven-plugin</artifactId>
+                    <version>${proguard.maven.version}</version>
+                </plugin>
+
+            </plugins>
+
+        </pluginManagement>
+
+    </build>
+
+</project>
