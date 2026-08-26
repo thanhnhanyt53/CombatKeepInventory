@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- Parent                                                  -->
+    <!-- ====================================================== -->
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0</version>
+    </parent>
+
+    <artifactId>cki-velocity</artifactId>
+
+    <name>CombatKeepInventory Velocity</name>
+    <description>
+        CombatKeepInventory Velocity proxy implementation.
+    </description>
+
+    <packaging>jar</packaging>
+
+    <!-- ====================================================== -->
+    <!-- Dependencies                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+        <!-- CKI Core is bundled into the final plugin JAR. -->
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Velocity API is supplied by Velocity. -->
+        <dependency>
+            <groupId>com.velocitypowered</groupId>
+            <artifactId>velocity-api</artifactId>
+            <version>${velocity.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Velocity config parser, bundled into the plugin JAR. -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>${snakeyaml.version}</version>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ====================================================== -->
+    <!-- Resources                                               -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <resources>
+
+            <!-- Descriptor receives project version. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+
+                <includes>
+                    <include>velocity-plugin.json</include>
+                </includes>
+            </resource>
+
+            <!-- Config/messages remain untouched. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+
+                <excludes>
+                    <exclude>velocity-plugin.json</exclude>
+                </excludes>
+            </resource>
+
+        </resources>
+
+        <plugins>
+
+            <!-- ================================================== -->
+            <!-- Compiler                                            -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- Shade                                               -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+                        <id>shade-core-and-snakeyaml</id>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <minimizeJar>false</minimizeJar>
+
+                            <!-- CKI public packages must stay unchanged. -->
+                            <relocations>
+                                <!-- Intentionally empty -->
+                            </relocations>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- ProGuard                                            -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>com.github.wvengen</groupId>
+                <artifactId>proguard-maven-plugin</artifactId>
+
+                <dependencies>
+
+                    <dependency>
+                        <groupId>com.guardsquare</groupId>
+                        <artifactId>proguard-base</artifactId>
+                        <version>${proguard.version}</version>
+                        <scope>runtime</scope>
+                    </dependency>
+
+                </dependencies>
+
+                <executions>
+
+                    <execution>
+                        <id>obfuscate-production</id>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>proguard</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <obfuscate>true</obfuscate>
+
+                            <injar>
+                                ${project.build.finalName}.jar
+                            </injar>
+
+                            <outjar>
+                                ${project.build.finalName}.jar
+                            </outjar>
+
+                            <outputDirectory>
+                                ${project.build.directory}
+                            </outputDirectory>
+
+                            <mappingFileName>
+                                ${project.build.finalName}-mapping.txt
+                            </mappingFileName>
+
+                            <seedFileName>
+                                ${project.build.finalName}-seeds.txt
+                            </seedFileName>
+
+                            <generateTemporaryConfigurationFile>
+                                true
+                            </generateTemporaryConfigurationFile>
+
+                            <options>
+
+                                <!-- ============================================== -->
+                                <!-- Runtime metadata.                              -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keepattributes
+                                    RuntimeVisibleAnnotations,
+                                    RuntimeInvisibleAnnotations,
+                                    RuntimeVisibleParameterAnnotations,
+                                    RuntimeInvisibleParameterAnnotations,
+                                    AnnotationDefault,
+                                    Signature,
+                                    InnerClasses,
+                                    EnclosingMethod
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Velocity plugin entrypoint.                    -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.velocity.CombatKeepInventoryVelocity {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Velocity event listener methods use           -->
+                                <!-- reflection/annotations.                       -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.velocity.listener.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Public CKI Core API.                          -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public interface
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- Public platform contract. -->
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.platform.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.platform.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- Public core events. -->
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.event.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Plugin resources.                              -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keepresourcefiles velocity-plugin.json
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles config.yml
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles message.yml
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles META-INF/services/**
+                                </option>
+
+                                <option>
+                                    -keepdirectories
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Optional dependency notes.                     -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -dontnote
+                                </option>
+
+                                <option>
+                                    -dontwarn javax.annotation.**
+                                </option>
+
+                                <option>
+                                    -dontwarn org.jetbrains.annotations.**
+                                </option>
+
+                            </options>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
