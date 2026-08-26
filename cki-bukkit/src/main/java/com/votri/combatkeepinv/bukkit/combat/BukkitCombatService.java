@@ -15,8 +15,7 @@ import java.util.UUID;
 /**
  * Bukkit implementation of the public CKI CombatService.
  *
- * <p>This class contains the Bukkit-facing service layer.
- * CombatManager remains the authoritative CombatTag owner.</p>
+ * <p>CombatManager remains the authoritative CombatTag owner.</p>
  */
 public final class BukkitCombatService
         implements CombatService {
@@ -52,18 +51,17 @@ public final class BukkitCombatService
                 attacker,
                 victim
         )) {
+
             return CombatResult.INVALID_ARGUMENT;
         }
 
         if (!isEnabled()) {
+
             return CombatResult.DISABLED;
         }
 
         /*
-         * A valid player-vs-player interaction is enough.
-         *
-         * CombatManager decides whether this becomes START
-         * or REFRESH.
+         * CombatManager decides START vs REFRESH.
          */
         combatManager.tag(
                 attacker,
@@ -83,10 +81,12 @@ public final class BukkitCombatService
                 attacker,
                 victim
         )) {
+
             return CombatResult.INVALID_ARGUMENT;
         }
 
         if (!isEnabled()) {
+
             return CombatResult.DISABLED;
         }
 
@@ -104,12 +104,14 @@ public final class BukkitCombatService
     ) {
 
         if (player == null) {
+
             return CombatResult.INVALID_ARGUMENT;
         }
 
         if (!combatManager.isInCombat(
                 player
         )) {
+
             return CombatResult.NOT_IN_COMBAT;
         }
 
@@ -126,12 +128,14 @@ public final class BukkitCombatService
     ) {
 
         if (player == null) {
+
             return CombatResult.INVALID_ARGUMENT;
         }
 
         if (!combatManager.isInCombat(
                 player
         )) {
+
             return CombatResult.NOT_IN_COMBAT;
         }
 
@@ -203,22 +207,18 @@ public final class BukkitCombatService
          * PRIORITY 1 — ACTIVE COMBAT TAG
          * ======================================================
          *
-         * DeathContext is intentionally ignored here.
+         * Death cause is irrelevant while CombatTag is active.
+         *
+         * inventory.keep-experience controls this case.
          */
+
         if (combatManager.isInCombat(
                 player
         )) {
 
-            boolean keepExperience =
-                    plugin.getConfig()
-                            .getBoolean(
-                                    "death.keep-experience",
-                                    true
-                            );
-
             return new DeathResult(
                     InventoryPolicy.DROP,
-                    keepExperience,
+                    plugin.shouldKeepCombatDeathExperience(),
                     true
             );
         }
@@ -242,18 +242,11 @@ public final class BukkitCombatService
                                     true
                             );
 
-            boolean keepExperience =
-                    plugin.getConfig()
-                            .getBoolean(
-                                    "death.keep-experience",
-                                    true
-                            );
-
             return new DeathResult(
                     drop
                             ? InventoryPolicy.DROP
                             : InventoryPolicy.KEEP,
-                    keepExperience,
+                    plugin.shouldKeepDeathExperience(),
                     true
             );
         }
@@ -271,18 +264,11 @@ public final class BukkitCombatService
                                 true
                         );
 
-        boolean keepExperience =
-                plugin.getConfig()
-                        .getBoolean(
-                                "death.keep-experience",
-                                true
-                        );
-
         return new DeathResult(
                 keep
                         ? InventoryPolicy.KEEP
                         : InventoryPolicy.DROP,
-                keepExperience,
+                plugin.shouldKeepDeathExperience(),
                 false
         );
     }
@@ -290,12 +276,7 @@ public final class BukkitCombatService
     @Override
     public boolean isEnabled() {
 
-        return plugin.isEnabled()
-                && plugin.getConfig()
-                        .getBoolean(
-                                "combat.enabled",
-                                true
-                        );
+        return plugin.isCombatEnabled();
     }
 
     private boolean isValidPair(
