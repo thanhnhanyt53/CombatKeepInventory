@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>cki-bukkit</artifactId>
+
+    <name>CombatKeepInventory Bukkit</name>
+    <description>CombatKeepInventory Bukkit/Paper implementation.</description>
+
+    <packaging>jar</packaging>
+
+    <!-- ====================================================== -->
+    <!-- Repositories                                           -->
+    <!-- ====================================================== -->
+
+    <repositories>
+
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+
+        <repository>
+            <id>enginehub</id>
+            <url>https://maven.enginehub.org/repo/</url>
+        </repository>
+
+    </repositories>
+
+    <!-- ====================================================== -->
+    <!-- Dependencies                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+        <!-- ================================================== -->
+        <!-- CKI Core                                            -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- ================================================== -->
+        <!-- Paper API                                            -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ================================================== -->
+        <!-- WorldGuard API                                      -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <version>7.0.16</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ====================================================== -->
+    <!-- Build                                                  -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <plugins>
+
+            <!-- ================================================== -->
+            <!-- Compiler                                            -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+                    <release>21</release>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- Shade                                               -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <!-- Do not generate dependency-reduced POM -->
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <!-- Replace normal JAR -->
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <!-- Keep all CKI classes -->
+                            <minimizeJar>false</minimizeJar>
+
+                            <!-- ================================================== -->
+                            <!-- IMPORTANT                                         -->
+                            <!-- ================================================== -->
+                            <!-- Do NOT relocate CKI Core API.                     -->
+                            <!-- External plugins depend on this package.          -->
+
+                            <relocations>
+                                <!-- Intentionally empty -->
+                            </relocations>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
