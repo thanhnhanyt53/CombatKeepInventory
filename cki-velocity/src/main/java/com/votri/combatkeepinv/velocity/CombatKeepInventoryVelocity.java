@@ -46,7 +46,7 @@ public final class CombatKeepInventoryVelocity {
     private final Path dataDirectory;
 
     private final PlayerSessionManager sessionManager;
-    private final ProxyCombatStateManager combatStateManager;
+    private ProxyCombatStateManager combatStateManager;
 
     private PlatformInfo platformInfo;
 
@@ -90,11 +90,16 @@ public final class CombatKeepInventoryVelocity {
         initializeDataFiles();
 
         config =
-                new VelocityConfig(
-                        dataDirectory
-                );
+        new VelocityConfig(
+                dataDirectory
+        );
 
-        config.load();
+config.load();
+
+combatStateManager =
+        new ProxyCombatStateManager(
+                config
+        );
 
         if (!config.isEnabled()) {
 
