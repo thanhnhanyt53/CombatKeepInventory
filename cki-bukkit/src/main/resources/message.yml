@@ -1,25 +1,94 @@
-prefix: "&8[&cCombatKeepInventory&8] &r"
+# ============================================================
+# CombatKeepInventory
+# Messages Configuration
+#
+# All messages support the '&' color-code format.
+# ============================================================
+
+
+# ============================================================
+# General
+# ============================================================
+
+prefix: "&8[&cCombatKeepInventory&8] "
+
+
+# ============================================================
+# Combat
+# ============================================================
 
 combat:
-  tagged: "&cBạn đang trong combat!"
-  tagged-other: "&cBạn đã bị đưa vào combat bởi &f%player%&c."
-  expired: "&aBạn đã thoát combat."
-  remaining: "&cBạn còn &f%seconds% &cgiây combat."
+  tagged: "&cYou are now in combat!"
+  untagged: "&aYou are no longer in combat."
+  already-in-combat: "&cYou are already in combat!"
+  remaining: "&cYou are in combat for &e%seconds%s&c."
+
+  attacker-tagged: "&cYou are now in combat with &e%player&c."
+  victim-tagged: "&cYou are now in combat with &e%player&c."
+
+  combat-started: "&cCombat started with &e%player&c."
+  combat-refreshed: "&eCombat timer refreshed."
+
+  combat-ended: "&aYour combat tag has expired."
+
+
+# ============================================================
+# Death
+# ============================================================
 
 death:
-  keep-inventory: "&aBạn đã giữ lại inventory."
-  drop-inventory: "&cBạn đã mất inventory."
+  keep-inventory: "&aYour inventory has been kept."
+  drop-inventory: "&cYour inventory has been dropped because you died in combat."
 
-pvp:
-  enabled: "&aPvP đã được bật."
-  disabled: "&cPvP đã được tắt."
+  combat-death: "&cYou died while in combat."
+  normal-death: "&aYou died outside of combat."
+
+
+# ============================================================
+# Commands
+# ============================================================
 
 command:
-  no-permission: "&cBạn không có quyền sử dụng lệnh này."
-  player-only: "&cLệnh này chỉ dành cho người chơi."
-  unknown: "&cLệnh không hợp lệ."
-  reload: "&aCombatKeepInventory đã được reload."
-  status: "&7PvP: %pvp% &8| &7Combat: %combat%"
+  no-permission: "&cYou do not have permission to use this command."
+  player-only: "&cThis command can only be used by a player."
+  unknown-subcommand: "&cUnknown subcommand."
+
+  reload:
+    success: "&aCombatKeepInventory configuration reloaded."
+    failed: "&cFailed to reload CombatKeepInventory configuration."
+
+  combat:
+    player-not-found: "&cPlayer not found."
+    not-in-combat: "&aThat player is not currently in combat."
+    in-combat: "&cThat player is currently in combat."
+
+    ended: "&aCombat has been ended for &e%player&c."
+    forced-ended: "&aCombat has been forcefully ended for &e%player&c."
+
+
+# ============================================================
+# Platform
+# ============================================================
 
 platform:
-  detected: "&7Platform: &f%platform%"
+  mismatch: "&cThe configured platform does not match the detected server platform."
+  detected: "&7Detected platform: &f%platform"
+  selected: "&7Selected platform: &f%platform"
+
+
+# ============================================================
+# World
+# ============================================================
+
+world:
+  disabled: "&cCombatKeepInventory is disabled in this world."
+
+
+# ============================================================
+# Errors
+# ============================================================
+
+error:
+  generic: "&cAn internal error occurred."
+  not-initialized: "&cCombatKeepInventory is not fully initialized."
+  invalid-player: "&cInvalid player."
