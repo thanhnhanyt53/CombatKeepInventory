@@ -284,11 +284,10 @@
 
                                 <!-- Bukkit event handlers -->
                                 <option>
-                                    -keepclasseswithmembers,includedescriptorclasses
-                                    class * {
-                                        @org.bukkit.event.EventHandler <methods>;
-                                    }
-                                </option>
+    -keepclasseswithmembers,includedescriptorclasses class * {
+        @org.bukkit.event.EventHandler &lt;methods&gt;;
+    }
+</option>
 
                                 <!-- ================================= -->
                                 <!-- Bukkit API / bridge -->
