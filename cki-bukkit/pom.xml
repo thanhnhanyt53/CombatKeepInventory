@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- Parent                                                  -->
+    <!-- ====================================================== -->
+
+    <parent>
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.1.0</version>
+    </parent>
+
+    <artifactId>cki-bukkit</artifactId>
+
+    <name>CombatKeepInventory Bukkit</name>
+    <description>
+        CombatKeepInventory Bukkit/Paper implementation.
+    </description>
+
+    <packaging>jar</packaging>
+
+    <!-- ====================================================== -->
+    <!-- Dependencies                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+        <!-- CKI Core is bundled into the final plugin JAR. -->
+        <dependency>
+            <groupId>com.votri</groupId>
+            <artifactId>cki-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Paper is supplied by the server. -->
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>${paper.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Optional WorldGuard API. -->
+        <dependency>
+            <groupId>com.sk89q.worldguard</groupId>
+            <artifactId>worldguard-bukkit</artifactId>
+            <version>${worldguard.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ====================================================== -->
+    <!-- Resources                                               -->
+    <!-- ====================================================== -->
+
+    <build>
+
+        <resources>
+
+            <!-- Only descriptor is Maven-filtered. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
+            </resource>
+
+            <!-- Config/messages are copied byte-for-byte. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
+            </resource>
+
+        </resources>
+
+        <plugins>
+
+            <!-- ================================================== -->
+            <!-- Compiler                                            -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- Shade                                               -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+
+                <executions>
+
+                    <execution>
+                        <id>shade-core</id>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                            <!-- Do not remove classes required by public API. -->
+                            <minimizeJar>false</minimizeJar>
+
+                            <!-- CKI packages must not be relocated. -->
+                            <relocations>
+                                <!-- Intentionally empty -->
+                            </relocations>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+            </plugin>
+
+            <!-- ================================================== -->
+            <!-- ProGuard                                            -->
+            <!-- ================================================== -->
+
+            <plugin>
+                <groupId>com.github.wvengen</groupId>
+                <artifactId>proguard-maven-plugin</artifactId>
+
+                <dependencies>
+
+                    <dependency>
+                        <groupId>com.guardsquare</groupId>
+                        <artifactId>proguard-base</artifactId>
+                        <version>${proguard.version}</version>
+                        <scope>runtime</scope>
+                    </dependency>
+
+                </dependencies>
+
+                <executions>
+
+                    <execution>
+                        <id>obfuscate-production</id>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>proguard</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <obfuscate>true</obfuscate>
+
+                            <injar>
+                                ${project.build.finalName}.jar
+                            </injar>
+
+                            <!-- Output replaces the shaded JAR. -->
+                            <outjar>
+                                ${project.build.finalName}.jar
+                            </outjar>
+
+                            <outputDirectory>
+                                ${project.build.directory}
+                            </outputDirectory>
+
+                            <mappingFileName>
+                                ${project.build.finalName}-mapping.txt
+                            </mappingFileName>
+
+                            <seedFileName>
+                                ${project.build.finalName}-seeds.txt
+                            </seedFileName>
+
+                            <generateTemporaryConfigurationFile>
+                                true
+                            </generateTemporaryConfigurationFile>
+
+                            <options>
+
+                                <!-- ============================================== -->
+                                <!-- Keep Java metadata used by the runtime.        -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keepattributes
+                                    RuntimeVisibleAnnotations,
+                                    RuntimeInvisibleAnnotations,
+                                    RuntimeVisibleParameterAnnotations,
+                                    RuntimeInvisibleParameterAnnotations,
+                                    AnnotationDefault,
+                                    Signature,
+                                    InnerClasses,
+                                    EnclosingMethod
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Keep Bukkit entrypoint.                        -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.bukkit.CombatKeepInventory {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Keep public CKI Core contract.                -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public interface
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.api.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- Public platform contract. -->
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.platform.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <option>
+                                    -keep public enum
+                                    com.votri.combatkeepinv.core.platform.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- Public core events. -->
+                                <option>
+                                    -keep public class
+                                    com.votri.combatkeepinv.core.event.** {
+                                    *;
+                                    }
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Keep plugin resources.                         -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -keepresourcefiles plugin.yml
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles config.yml
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles message.yml
+                                </option>
+
+                                <option>
+                                    -keepresourcefiles META-INF/services/**
+                                </option>
+
+                                <option>
+                                    -keepdirectories
+                                </option>
+
+                                <!-- ============================================== -->
+                                <!-- Optional hook/resource safety.                 -->
+                                <!-- ============================================== -->
+
+                                <option>
+                                    -dontnote
+                                </option>
+
+                                <option>
+                                    -dontwarn javax.annotation.**
+                                </option>
+
+                                <option>
+                                    -dontwarn org.jetbrains.annotations.**
+                                </option>
+
+                            </options>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
