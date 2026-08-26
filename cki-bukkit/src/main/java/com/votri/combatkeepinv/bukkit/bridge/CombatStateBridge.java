@@ -1,6 +1,7 @@
 package com.votri.combatkeepinv.bukkit.bridge;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
+
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.Messenger;
 
@@ -35,12 +36,14 @@ public final class CombatStateBridge {
     ) {
 
         if (plugin == null) {
+
             throw new IllegalArgumentException(
                     "plugin cannot be null"
             );
         }
 
-        this.plugin = plugin;
+        this.plugin =
+                plugin;
 
         Messenger messenger =
                 plugin.getServer()
@@ -51,6 +54,12 @@ public final class CombatStateBridge {
                 CHANNEL
         );
     }
+
+    /*
+     * ==========================================================
+     * PUBLIC STATE EVENTS
+     * ==========================================================
+     */
 
     public boolean publishStart(
             UUID attacker,
@@ -116,6 +125,12 @@ public final class CombatStateBridge {
                 );
     }
 
+    /*
+     * ==========================================================
+     * PAIR STATE
+     * ==========================================================
+     */
+
     private boolean sendPairState(
             byte operation,
             UUID attacker,
@@ -177,6 +192,12 @@ public final class CombatStateBridge {
         );
     }
 
+    /*
+     * ==========================================================
+     * SINGLE STATE
+     * ==========================================================
+     */
+
     private boolean sendSingleState(
             byte operation,
             UUID player
@@ -216,6 +237,12 @@ public final class CombatStateBridge {
                         )
         );
     }
+
+    /*
+     * ==========================================================
+     * ENCODING
+     * ==========================================================
+     */
 
     private boolean send(
             Player source,
@@ -287,15 +314,17 @@ public final class CombatStateBridge {
         );
     }
 
+    /*
+     * ==========================================================
+     * DEBUG
+     * ==========================================================
+     */
+
     private void debug(
             String message
     ) {
 
-        if (!plugin.getConfig()
-                .getBoolean(
-                        "debug.combat",
-                        false
-                )) {
+        if (!plugin.isDebugBridge()) {
             return;
         }
 
