@@ -1,0 +1,250 @@
+# ============================================================
+# CombatKeepInventory - Velocity
+# ============================================================
+
+config-version: 1
+
+
+# ============================================================
+# General
+# ============================================================
+
+general:
+
+  # Enables the Velocity side of CombatKeepInventory.
+  enabled: true
+
+  # Debug logging for the proxy module.
+  debug: false
+
+
+# ============================================================
+# Combat State Bridge
+# ============================================================
+#
+# Bukkit is the authoritative source of CombatTag state.
+#
+# Velocity MUST NOT independently calculate whether a player
+# is in combat.
+#
+# State flow:
+#
+# Bukkit CombatManager
+#       |
+#       v
+# CombatStateBridge
+#       |
+#       v
+# Velocity
+#       |
+#       v
+# ProxyCombatStateManager
+#
+
+bridge:
+
+  enabled: true
+
+  # Velocity plugin message channel used by Bukkit -> Velocity.
+  channel: "combatkeepinventory:combat"
+
+  # Reject messages from servers that are not explicitly
+  # allowed below.
+  verify-source-server: true
+
+  # Backend servers allowed to send CombatTag state.
+  #
+  # Example:
+  # allowed-servers:
+  #   - survival
+  #   - bedwars
+  #   - factions
+  #
+  # Empty list = accept from every connected backend.
+  allowed-servers: []
+
+
+# ============================================================
+# Combat State
+# ============================================================
+
+combat:
+
+  # If no START/REFRESH message is received within this
+  # timeout, the proxy considers the synchronized state stale.
+  #
+  # This does NOT create or refresh combat.
+  #
+  # It only protects against a backend/plugin crash or
+  # communication failure.
+  state-timeout-seconds: 15
+
+  # Remove proxy combat state when a player disconnects.
+  clear-on-disconnect: true
+
+  # Remove proxy combat state when a player switches backend.
+  #
+  # Recommended: false
+  #
+  # Combat state is controlled by Bukkit and should survive
+  # a normal server switch when the backend sends the proper
+  # state.
+  clear-on-server-switch: false
+
+
+# ============================================================
+# Server Switch
+# ============================================================
+
+server-switch:
+
+  enabled: true
+
+  # Synchronize the player's current backend server.
+  track-server: true
+
+  # If true, switching server while in combat can trigger
+  # punishment.
+  check-combat-on-switch: true
+
+  # Do not punish a player merely because the proxy receives
+  # a server switch event.
+  #
+  # The punishment decision must use the synchronized
+  # CombatTag state.
+  require-active-combat: true
+
+
+# ============================================================
+# Cluster Exit
+# ============================================================
+#
+# Cluster exit means the player leaves the Velocity network
+# completely while still having an active CombatTag.
+#
+
+cluster-exit:
+
+  enabled: true
+
+  check-combat: true
+
+  # Punishment is only executed if:
+  #
+  # active CombatTag == true
+  #
+  # at the moment the player leaves the proxy.
+  require-active-combat: true
+
+
+# ============================================================
+# Punishment
+# ============================================================
+
+punishment:
+
+  enabled: true
+
+  # ==========================================================
+  # Server Switch Punishment
+  # ==========================================================
+
+  on-server-switch:
+
+    enabled: false
+
+    # Commands are executed by Velocity console.
+    #
+    # {player} = player name
+    # {uuid}   = player UUID
+    # {server} = destination server
+    commands: []
+
+    # Example:
+    #
+    # commands:
+    #   - "ban {player} 1h Combat logging"
+
+
+  # ==========================================================
+  # Cluster Exit Punishment
+  # ==========================================================
+
+  on-cluster-exit:
+
+    enabled: false
+
+    commands: []
+
+    # Example:
+    #
+    # commands:
+    #   - "ban {player} 1h Combat logging"
+
+
+# ============================================================
+# Punishment Conditions
+# ============================================================
+
+conditions:
+
+  # Punishment requires an active CombatTag.
+  require-combat-tag: true
+
+  # Do not punish players with this permission.
+  bypass-permission: "combatkeepinventory.bypass"
+
+  # Do not punish if the synchronized state has expired.
+  require-unexpired-tag: true
+
+
+# ============================================================
+# API
+# ============================================================
+#
+# This section controls whether the Velocity API is exposed
+# to other Velocity plugins.
+#
+
+api:
+
+  enabled: true
+
+  # Allows other plugins to access:
+  #
+  # VelocityCombatAPI
+  # ProxyCombatStateManager
+  # CombatPunishmentService
+  #
+  expose-api: true
+
+
+# ============================================================
+# Logging
+# ============================================================
+
+logging:
+
+  # Log START messages.
+  start: false
+
+  # Log REFRESH messages.
+  refresh: false
+
+  # Log END messages.
+  end: false
+
+  # Log FORCE_END messages.
+  force-end: true
+
+  # Log server switches.
+  server-switch: false
+
+  # Log cluster exits.
+  cluster-exit: true
+
+  # Log punishment execution.
+  punishment: true
+
+  # Log invalid/unknown bridge messages.
+  invalid-message: true
