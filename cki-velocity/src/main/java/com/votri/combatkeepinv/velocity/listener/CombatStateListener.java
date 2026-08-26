@@ -37,7 +37,7 @@ public final class CombatStateListener {
     ) {
 
         if (!MinecraftChannelIdentifier
-                .forId(
+                .from(
                         CombatStateProtocol.CHANNEL
                 )
                 .equals(
