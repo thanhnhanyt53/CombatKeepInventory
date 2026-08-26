@@ -23,6 +23,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,9 +36,9 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.1.0-SNAPSHOT-build4";
+            "1.1.0-SNAPSHOT-build5";
 
-    private static final int CONFIG_VERSION = 2;
+    private static final int CONFIG_VERSION = 3;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -53,6 +54,8 @@ public final class CombatKeepInventory extends JavaPlugin {
     private FileConfiguration messages;
 
     private String selectedPlatform;
+
+    private BukkitTask combatCleanupTask;
 
     @Override
     public void onEnable() {
@@ -103,14 +106,15 @@ public final class CombatKeepInventory extends JavaPlugin {
          * COMBAT STATE BRIDGE
          * ==========================================================
          *
-         * Bukkit is authoritative.
+         * CombatManager depends on CombatStateBridge.
          *
-         * Velocity receives:
+         * Therefore the initialization order MUST be:
          *
-         * START
-         * REFRESH
-         * END
-         * FORCE_END
+         * CombatStateBridge
+         *        ↓
+         * CombatManager
+         *        ↓
+         * BukkitCombatService
          */
 
         initializeCombatStateBridge();
@@ -130,31 +134,12 @@ public final class CombatKeepInventory extends JavaPlugin {
          */
 
         if (pvpManagerDetector != null) {
+
             pvpManagerDetector.logWarningIfDetected();
         }
 
         /*
-         *
-
-        startCombatCleanupTask();
-
-        private void startCombatCleanupTask() {
-
-    getServer()
-            .getScheduler()
-            .runTaskTimer(
-                    this,
-                    () -> {
-
-                        if (combatManager != null) {
-
-                            combatManager.cleanupExpired();
-                        }
-                    },
-                    20L,
-                    20L
-            );
-} ==========================================================
+         * ==========================================================
          * CORE API
          * ==========================================================
          */
@@ -168,6 +153,20 @@ public final class CombatKeepInventory extends JavaPlugin {
          */
 
         registerCombatListeners();
+
+        /*
+         * ==========================================================
+         * COMBAT CLEANUP
+         * ==========================================================
+         *
+         * Runs every second.
+         *
+         * This is important because an expired CombatTag must
+         * generate END for Velocity even when nobody queries
+         * that player's state.
+         */
+
+        startCombatCleanupTask();
 
         /*
          * ==========================================================
@@ -187,43 +186,61 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     @Override
-public void onDisable() {
+    public void onDisable() {
 
-    /*
-     * Stop publishing new combat state first.
-     */
-    if (combatManager != null) {
+        /*
+         * Stop cleanup task first.
+         */
 
-        combatManager.clear();
+        if (combatCleanupTask != null) {
+
+            combatCleanupTask.cancel();
+            combatCleanupTask = null;
+        }
+
+        /*
+         * Clear combat state.
+         *
+         * CombatManager sends FORCE_END for active players.
+         */
+
+        if (combatManager != null) {
+
+            combatManager.clear();
+        }
+
+        /*
+         * Unregister public API.
+         */
+
+        unregisterApi();
+
+        /*
+         * Shutdown plugin messaging bridge.
+         */
+
+        if (combatStateBridge != null) {
+
+            combatStateBridge.shutdown();
+        }
+
+        /*
+         * Release references.
+         */
+
+        combatListener = null;
+        pvpManagerDetector = null;
+        worldGuardHook = null;
+        combatService = null;
+        combatManager = null;
+        combatStateBridge = null;
+
+        getLogger().info(
+                "CombatKeepInventory "
+                        + PLUGIN_VERSION
+                        + " disabled."
+        );
     }
-
-    /*
-     * Unregister public API.
-     */
-    unregisterApi();
-
-    /*
-     * Release plugin messaging channel.
-     */
-    if (combatStateBridge != null) {
-
-        combatStateBridge.shutdown();
-    }
-
-    combatListener = null;
-    pvpManagerDetector = null;
-    worldGuardHook = null;
-    combatService = null;
-    combatManager = null;
-    combatStateBridge = null;
-
-    getLogger().info(
-            "CombatKeepInventory "
-                    + PLUGIN_VERSION
-                    + " disabled."
-    );
-}
-
 
     /*
      * ==========================================================
@@ -260,6 +277,7 @@ public void onDisable() {
     private String getDetectedPlatformName() {
 
         if (platformInfo == null) {
+
             return "unknown";
         }
 
@@ -278,10 +296,12 @@ public void onDisable() {
                 );
 
         if (!strict) {
+
             return true;
         }
 
         if ("auto".equals(selectedPlatform)) {
+
             return true;
         }
 
@@ -299,6 +319,7 @@ public void onDisable() {
     private void initializeCombatStateBridge() {
 
         if (combatStateBridge != null) {
+
             return;
         }
 
@@ -331,97 +352,107 @@ public void onDisable() {
 
     private void initializeComponents() {
 
-    long durationMillis =
-            getCombatDurationSeconds()
-                    * 1000L;
+        long durationMillis =
+                getCombatDurationSeconds()
+                        * 1000L;
 
-    /*
-     * ==========================================================
-     * CombatStateBridge
-     * ==========================================================
-     *
-     * Must exist before CombatManager because CombatManager
-     * publishes every state transition through this bridge.
-     */
-    if (combatStateBridge == null) {
-
-        combatStateBridge =
-                new CombatStateBridge(
-                        this
-                );
-    }
-
-    /*
-     * ==========================================================
-     * CombatManager
-     * ==========================================================
-     */
-
-    if (combatManager == null) {
-
-        combatManager =
-                new CombatManager(
-                        durationMillis,
-                        combatStateBridge
-                );
-
-    } else {
-
-        combatManager.setDurationMillis(
-                durationMillis
-        );
-    }
-
-    /*
-     * ==========================================================
-     * BukkitCombatService
-     * ==========================================================
-     */
-
-    if (combatService == null) {
-
-        combatService =
-                new BukkitCombatService(
-                        this,
-                        combatManager
-                );
-    }
-
-    /*
-     * ==========================================================
-     * WorldGuard
-     * ==========================================================
-     */
-
-    if (worldGuardHook == null) {
-
-        worldGuardHook =
-                new WorldGuardHook(
-                        this
-                );
-    }
-
-    /*
-     * ==========================================================
-     * PvPManager detection
-     * ==========================================================
-     *
-     * Detection only.
-     *
-     * CKI does not use PvPManager combat state.
-     */
-
-    if (pvpManagerDetector == null) {
-
-        pvpManagerDetector =
-                new PvPManagerDetector(
-                        this
-                );
-    }
-}
         /*
-         
-         
+         * Bridge must exist before CombatManager.
+         */
+
+        if (combatStateBridge == null) {
+
+            combatStateBridge =
+                    new CombatStateBridge(this);
+        }
+
+        /*
+         * CombatManager.
+         */
+
+        if (combatManager == null) {
+
+            combatManager =
+                    new CombatManager(
+                            durationMillis,
+                            combatStateBridge
+                    );
+
+        } else {
+
+            combatManager.setDurationMillis(
+                    durationMillis
+            );
+        }
+
+        /*
+         * BukkitCombatService.
+         */
+
+        if (combatService == null) {
+
+            combatService =
+                    new BukkitCombatService(
+                            this,
+                            combatManager
+                    );
+        }
+
+        /*
+         * WorldGuard.
+         */
+
+        if (worldGuardHook == null) {
+
+            worldGuardHook =
+                    new WorldGuardHook(
+                            this
+                    );
+        }
+
+        /*
+         * PvPManager detection only.
+         */
+
+        if (pvpManagerDetector == null) {
+
+            pvpManagerDetector =
+                    new PvPManagerDetector(
+                            this
+                    );
+        }
+    }
+
+    /*
+     * ==========================================================
+     * COMBAT CLEANUP
+     * ==========================================================
+     */
+
+    private void startCombatCleanupTask() {
+
+        if (combatCleanupTask != null) {
+
+            combatCleanupTask.cancel();
+        }
+
+        combatCleanupTask =
+                getServer()
+                        .getScheduler()
+                        .runTaskTimer(
+                                this,
+                                () -> {
+
+                                    if (combatManager != null) {
+
+                                        combatManager
+                                                .cleanupExpired();
+                                    }
+                                },
+                                20L,
+                                20L
+                        );
+    }
 
     /*
      * ==========================================================
@@ -434,7 +465,9 @@ public void onDisable() {
         try {
 
             CombatKeepInventoryAPI.Provider.register(
-                    new BukkitCombatKeepInventoryAPI(this)
+                    new BukkitCombatKeepInventoryAPI(
+                            this
+                    )
             );
 
         } catch (IllegalStateException exception) {
@@ -460,7 +493,10 @@ public void onDisable() {
             }
 
         } catch (IllegalStateException ignored) {
-            // API was not registered.
+
+            /*
+             * API was never registered.
+             */
         }
     }
 
@@ -473,6 +509,7 @@ public void onDisable() {
     private void registerCombatListeners() {
 
         if (combatListener != null) {
+
             return;
         }
 
@@ -489,8 +526,8 @@ public void onDisable() {
         EventExecutor damageExecutor =
                 (registeredListener, event) -> {
 
-                    if (event instanceof
-                            EntityDamageByEntityEvent damage) {
+                    if (event
+                            instanceof EntityDamageByEntityEvent damage) {
 
                         combatListener
                                 .onEntityDamageByEntity(
@@ -502,8 +539,8 @@ public void onDisable() {
         EventExecutor deathExecutor =
                 (registeredListener, event) -> {
 
-                    if (event instanceof
-                            PlayerDeathEvent death) {
+                    if (event
+                            instanceof PlayerDeathEvent death) {
 
                         combatListener
                                 .onPlayerDeath(
@@ -638,7 +675,8 @@ public void onDisable() {
         if (command == null) {
 
             getLogger().severe(
-                    "Command 'cki' is missing from plugin.yml!"
+                    "Command 'cki' is missing "
+                            + "from plugin.yml!"
             );
 
             return;
@@ -666,6 +704,7 @@ public void onDisable() {
                 );
 
         if (!configFile.exists()) {
+
             return;
         }
 
@@ -681,6 +720,7 @@ public void onDisable() {
                 );
 
         if (oldVersion >= CONFIG_VERSION) {
+
             return;
         }
 
@@ -714,7 +754,16 @@ public void onDisable() {
                             + backup.getName()
             );
 
+            getLogger().info(
+                    "A new configuration will now be created."
+            );
+
         } catch (IOException exception) {
+
+            getLogger().severe(
+                    "Could not migrate old config.yml: "
+                            + exception.getMessage()
+            );
 
             throw new IllegalStateException(
                     "Configuration migration failed.",
@@ -793,6 +842,7 @@ public void onDisable() {
     ) {
 
         if (messages == null) {
+
             return color(fallback);
         }
 
@@ -802,11 +852,12 @@ public void onDisable() {
                         fallback
                 );
 
-        return color(
-                value == null
-                        ? fallback
-                        : value
-        );
+        if (value == null) {
+
+            value = fallback;
+        }
+
+        return color(value);
     }
 
     public List<String> getMessageList(
@@ -814,11 +865,14 @@ public void onDisable() {
     ) {
 
         if (messages == null) {
+
             return List.of();
         }
 
         List<String> values =
-                messages.getStringList(path);
+                messages.getStringList(
+                        path
+                );
 
         List<String> result =
                 new ArrayList<>(
@@ -826,7 +880,10 @@ public void onDisable() {
                 );
 
         for (String value : values) {
-            result.add(color(value));
+
+            result.add(
+                    color(value)
+            );
         }
 
         return result;
@@ -837,6 +894,7 @@ public void onDisable() {
     ) {
 
         if (text == null) {
+
             return "";
         }
 
@@ -855,7 +913,9 @@ public void onDisable() {
     public void reloadPlugin() {
 
         reloadConfig();
+
         loadMessages();
+
         loadPlatformSelection();
 
         if (!checkPlatform()) {
@@ -876,6 +936,11 @@ public void onDisable() {
         getLogger().info(
                 "CombatKeepInventory configuration reloaded."
         );
+
+        getLogger().info(
+                "Listener priority configured as "
+                        + getListenerPriority()
+        );
     }
 
     /*
@@ -889,6 +954,7 @@ public void onDisable() {
     ) {
 
         if (world == null) {
+
             return true;
         }
 
