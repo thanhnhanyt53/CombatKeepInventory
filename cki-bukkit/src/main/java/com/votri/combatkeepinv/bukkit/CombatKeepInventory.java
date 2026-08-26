@@ -134,7 +134,27 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         /*
-         * ==========================================================
+         *
+
+        startCombatCleanupTask();
+
+        private void startCombatCleanupTask() {
+
+    getServer()
+            .getScheduler()
+            .runTaskTimer(
+                    this,
+                    () -> {
+
+                        if (combatManager != null) {
+
+                            combatManager.cleanupExpired();
+                        }
+                    },
+                    20L,
+                    20L
+            );
+} ==========================================================
          * CORE API
          * ==========================================================
          */
