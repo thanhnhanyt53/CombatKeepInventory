@@ -10,12 +10,9 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * Bridges authoritative Bukkit CombatTag state to Velocity.
+ * Sends authoritative Bukkit CombatTag state to Velocity.
  *
- * <p>
- * Bukkit is the authoritative combat-state owner.
- * Velocity only mirrors the state received through this bridge.
- * </p>
+ * <p>Bukkit is authoritative. Velocity is only a mirror.</p>
  */
 public final class CombatStateBridge {
 
@@ -24,16 +21,25 @@ public final class CombatStateBridge {
 
     public static final int PROTOCOL_VERSION = 1;
 
-    private static final byte START = 1;
-    private static final byte REFRESH = 2;
-    private static final byte END = 3;
-    private static final byte FORCE_END = 4;
+    public static final byte START = 1;
+    public static final byte REFRESH = 2;
+    public static final byte END = 3;
+    public static final byte FORCE_END = 4;
 
     private final CombatKeepInventory plugin;
+
+    private volatile boolean shutdown;
 
     public CombatStateBridge(
             CombatKeepInventory plugin
     ) {
+
+        if (plugin == null) {
+            throw new IllegalArgumentException(
+                    "plugin cannot be null"
+            );
+        }
+
         this.plugin = plugin;
 
         Messenger messenger =
@@ -46,14 +52,12 @@ public final class CombatStateBridge {
         );
     }
 
-    /**
-     * Sends a START state for both players.
-     */
     public boolean publishStart(
             UUID attacker,
             UUID victim,
             long expiresAt
     ) {
+
         return sendPairState(
                 START,
                 attacker,
@@ -62,14 +66,12 @@ public final class CombatStateBridge {
         );
     }
 
-    /**
-     * Sends a REFRESH state for both players.
-     */
     public boolean publishRefresh(
             UUID attacker,
             UUID victim,
             long expiresAt
     ) {
+
         return sendPairState(
                 REFRESH,
                 attacker,
@@ -78,34 +80,33 @@ public final class CombatStateBridge {
         );
     }
 
-    /**
-     * Ends combat for one player.
-     */
     public boolean publishEnd(
             UUID player
     ) {
+
         return sendSingleState(
                 END,
                 player
         );
     }
 
-    /**
-     * Forcefully ends combat for one player.
-     */
     public boolean publishForceEnd(
             UUID player
     ) {
+
         return sendSingleState(
                 FORCE_END,
                 player
         );
     }
 
-    /**
-     * Unregisters the outgoing plugin channel.
-     */
     public void shutdown() {
+
+        if (shutdown) {
+            return;
+        }
+
+        shutdown = true;
 
         plugin.getServer()
                 .getMessenger()
@@ -122,7 +123,8 @@ public final class CombatStateBridge {
             long expiresAt
     ) {
 
-        if (attacker == null
+        if (shutdown
+                || attacker == null
                 || victim == null
                 || attacker.equals(victim)) {
 
@@ -145,9 +147,9 @@ public final class CombatStateBridge {
                 || !source.isOnline()) {
 
             debug(
-                    "Could not bridge "
+                    "Cannot send "
                             + operationName(operation)
-                            + ": no online source player."
+                            + ": no online source."
             );
 
             return false;
@@ -158,20 +160,14 @@ public final class CombatStateBridge {
                 operation,
                 output -> {
 
-                    output.writeLong(
-                            attacker.getMostSignificantBits()
+                    writeUUID(
+                            output,
+                            attacker
                     );
 
-                    output.writeLong(
-                            attacker.getLeastSignificantBits()
-                    );
-
-                    output.writeLong(
-                            victim.getMostSignificantBits()
-                    );
-
-                    output.writeLong(
-                            victim.getLeastSignificantBits()
+                    writeUUID(
+                            output,
+                            victim
                     );
 
                     output.writeLong(
@@ -186,7 +182,9 @@ public final class CombatStateBridge {
             UUID player
     ) {
 
-        if (player == null) {
+        if (shutdown
+                || player == null) {
+
             return false;
         }
 
@@ -198,11 +196,11 @@ public final class CombatStateBridge {
                 || !source.isOnline()) {
 
             debug(
-                    "Could not bridge "
+                    "Cannot send "
                             + operationName(operation)
                             + " for "
                             + player
-                            + ": player is offline."
+                            + ": player offline."
             );
 
             return false;
@@ -211,16 +209,11 @@ public final class CombatStateBridge {
         return send(
                 source,
                 operation,
-                output -> {
-
-                    output.writeLong(
-                            player.getMostSignificantBits()
-                    );
-
-                    output.writeLong(
-                            player.getLeastSignificantBits()
-                    );
-                }
+                output ->
+                        writeUUID(
+                                output,
+                                player
+                        )
         );
     }
 
@@ -246,7 +239,9 @@ public final class CombatStateBridge {
                     operation
             );
 
-            writer.write(output);
+            writer.write(
+                    output
+            );
 
             output.flush();
 
@@ -259,7 +254,7 @@ public final class CombatStateBridge {
             debug(
                     "Sent "
                             + operationName(operation)
-                            + " from "
+                            + " via "
                             + source.getName()
             );
 
@@ -268,7 +263,9 @@ public final class CombatStateBridge {
         } catch (IOException exception) {
 
             plugin.getLogger().warning(
-                    "Could not encode CombatStateBridge message: "
+                    "Failed to encode CombatStateBridge "
+                            + operationName(operation)
+                            + ": "
                             + exception.getMessage()
             );
 
@@ -276,14 +273,29 @@ public final class CombatStateBridge {
         }
     }
 
+    private static void writeUUID(
+            DataOutputStream output,
+            UUID uuid
+    ) throws IOException {
+
+        output.writeLong(
+                uuid.getMostSignificantBits()
+        );
+
+        output.writeLong(
+                uuid.getLeastSignificantBits()
+        );
+    }
+
     private void debug(
             String message
     ) {
 
-        if (!plugin.getConfig().getBoolean(
-                "debug.combat",
-                false
-        )) {
+        if (!plugin.getConfig()
+                .getBoolean(
+                        "debug.combat",
+                        false
+                )) {
             return;
         }
 
