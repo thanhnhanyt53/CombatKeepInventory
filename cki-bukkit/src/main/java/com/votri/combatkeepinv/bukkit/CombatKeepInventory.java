@@ -167,47 +167,43 @@ public final class CombatKeepInventory extends JavaPlugin {
     }
 
     @Override
-    public void onDisable() {
+public void onDisable() {
 
-        /*
-         * Stop publishing bridge messages first.
-         */
-        if (combatStateBridge != null) {
+    /*
+     * Stop publishing new combat state first.
+     */
+    if (combatManager != null) {
 
-            combatStateBridge.shutdown();
-
-            combatStateBridge = null;
-        }
-
-        /*
-         * Unregister public API.
-         */
-        unregisterApi();
-
-        /*
-         * Clear authoritative combat state.
-         */
-        if (combatManager != null) {
-
-            combatManager.clear();
-        }
-
-        /*
-         * Release references.
-         */
-        combatListener = null;
-        pvpManagerDetector = null;
-        worldGuardHook = null;
-        combatService = null;
-        combatManager = null;
-        platformInfo = null;
-
-        getLogger().info(
-                "CombatKeepInventory "
-                        + PLUGIN_VERSION
-                        + " disabled."
-        );
+        combatManager.clear();
     }
+
+    /*
+     * Unregister public API.
+     */
+    unregisterApi();
+
+    /*
+     * Release plugin messaging channel.
+     */
+    if (combatStateBridge != null) {
+
+        combatStateBridge.shutdown();
+    }
+
+    combatListener = null;
+    pvpManagerDetector = null;
+    worldGuardHook = null;
+    combatService = null;
+    combatManager = null;
+    combatStateBridge = null;
+
+    getLogger().info(
+            "CombatKeepInventory "
+                    + PLUGIN_VERSION
+                    + " disabled."
+    );
+}
+
 
     /*
      * ==========================================================
@@ -315,62 +311,97 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private void initializeComponents() {
 
-        long durationMillis =
-                getCombatDurationSeconds()
-                        * 1000L;
+    long durationMillis =
+            getCombatDurationSeconds()
+                    * 1000L;
 
-        /*
-         * CombatManager is the authoritative state owner.
-         */
-        if (combatManager == null) {
+    /*
+     * ==========================================================
+     * CombatStateBridge
+     * ==========================================================
+     *
+     * Must exist before CombatManager because CombatManager
+     * publishes every state transition through this bridge.
+     */
+    if (combatStateBridge == null) {
 
-            combatManager =
-                    new CombatManager(
-                            durationMillis,
-                            combatStateBridge
-                    );
-
-        } else {
-
-            combatManager.setDurationMillis(
-                    durationMillis
-            );
-
-            combatManager.setCombatStateBridge(
-                    combatStateBridge
-            );
-        }
-
-        /*
-         * Bukkit implementation of Core CombatService.
-         */
-        if (combatService == null) {
-
-            combatService =
-                    new BukkitCombatService(
-                            this,
-                            combatManager
-                    );
-        }
-
-        /*
-         * WorldGuard integration.
-         */
-        if (worldGuardHook == null) {
-
-            worldGuardHook =
-                    new WorldGuardHook(this);
-        }
-
-        /*
-         * PvPManager is detection-only.
-         */
-        if (pvpManagerDetector == null) {
-
-            pvpManagerDetector =
-                    new PvPManagerDetector(this);
-        }
+        combatStateBridge =
+                new CombatStateBridge(
+                        this
+                );
     }
+
+    /*
+     * ==========================================================
+     * CombatManager
+     * ==========================================================
+     */
+
+    if (combatManager == null) {
+
+        combatManager =
+                new CombatManager(
+                        durationMillis,
+                        combatStateBridge
+                );
+
+    } else {
+
+        combatManager.setDurationMillis(
+                durationMillis
+        );
+    }
+
+    /*
+     * ==========================================================
+     * BukkitCombatService
+     * ==========================================================
+     */
+
+    if (combatService == null) {
+
+        combatService =
+                new BukkitCombatService(
+                        this,
+                        combatManager
+                );
+    }
+
+    /*
+     * ==========================================================
+     * WorldGuard
+     * ==========================================================
+     */
+
+    if (worldGuardHook == null) {
+
+        worldGuardHook =
+                new WorldGuardHook(
+                        this
+                );
+    }
+
+    /*
+     * ==========================================================
+     * PvPManager detection
+     * ==========================================================
+     *
+     * Detection only.
+     *
+     * CKI does not use PvPManager combat state.
+     */
+
+    if (pvpManagerDetector == null) {
+
+        pvpManagerDetector =
+                new PvPManagerDetector(
+                        this
+                );
+    }
+}
+        /*
+         
+         
 
     /*
      * ==========================================================
