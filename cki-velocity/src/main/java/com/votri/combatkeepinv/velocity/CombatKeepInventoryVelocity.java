@@ -105,70 +105,63 @@ public final class CombatKeepInventoryVelocity {
      */
 
     @Inject
-    public CombatKeepInventoryVelocity(
-            ProxyServer proxy,
-            Logger logger,
-            @DataDirectory Path dataDirectory
-    ) {
+public CombatKeepInventoryVelocity(
+        ProxyServer proxy,
+        Logger logger,
+        @DataDirectory Path dataDirectory
+) {
 
-        this.proxy =
-                proxy;
+    this.proxy =
+            proxy;
 
-        this.logger =
-                logger;
+    this.logger =
+            logger;
 
-        this.dataDirectory =
-                dataDirectory;
+    this.dataDirectory =
+            dataDirectory;
 
-        /*
-         * ------------------------------------------------------
-         * Configuration
-         * ------------------------------------------------------
-         *
-         * VelocityConfig does not parse the file in its
-         * constructor. The actual load happens during
-         * ProxyInitializeEvent after the default config has
-         * been created.
-         */
+    /*
+     * Configuration
+     */
+    this.config =
+            new VelocityConfig(
+                    dataDirectory
+            );
 
-        this.config =
-                new VelocityConfig(
-                        dataDirectory
-                );
+    /*
+     * Player sessions
+     */
+    this.sessionManager =
+            new PlayerSessionManager();
 
-        /*
-         * ------------------------------------------------------
-         * Session state
-         * ------------------------------------------------------
-         */
+    /*
+     * Mirrored combat state.
+     *
+     * Velocity never creates combat state itself.
+     * It only stores the state received from Bukkit.
+     */
+    this.combatStateManager =
+            new ProxyCombatStateManager(
+                    config
+            );
 
-        this.sessionManager =
-                new PlayerSessionManager();
+    /*
+     * Punishment service.
+     *
+     * Current constructor:
+     *
+     * CombatPunishmentService(
+     *     ProxyServer,
+     *     VelocityConfig
+     * )
+     */
+    this.punishmentService =
+            new CombatPunishmentService(
+                    proxy,
+                    config
+            );
+}
 
-        /*
-         * ------------------------------------------------------
-         * Proxy combat state
-         * ------------------------------------------------------
-         *
-         * Combat state manager receives the shared config.
-         */
-
-        this.combatStateManager =
-                new ProxyCombatStateManager(
-                        config
-                );
-
-        /*
-         * ------------------------------------------------------
-         * Punishment service
-         * ------------------------------------------------------
-         */
-
-        this.punishmentService =
-                new CombatPunishmentService(
-                        proxy
-                );
-    }
 
     /*
      * ==========================================================
