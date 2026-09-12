@@ -1,18 +1,28 @@
 package com.votri.combatkeepinv.core.event;
 
-import com.votri.combatkeepinv.core.api.CombatPlayer;
+import com.votri.combatkeepinv.core.combat.CombatReason;
+import com.votri.combatkeepinv.core.combat.CombatSession;
+
+import java.util.Objects;
 
 public final class CombatEndEvent {
 
-    private final CombatPlayer player;
+    private final CombatSession session;
+    private final CombatReason reason;
 
     public CombatEndEvent(
-            CombatPlayer player
+            CombatSession session,
+            CombatReason reason
     ) {
-        this.player = player;
+        this.session = Objects.requireNonNull(session, "session");
+        this.reason = Objects.requireNonNull(reason, "reason");
     }
 
-    public CombatPlayer getPlayer() {
-        return player;
+    public CombatSession getSession() {
+        return session;
+    }
+
+    public CombatReason getReason() {
+        return reason;
     }
 }
