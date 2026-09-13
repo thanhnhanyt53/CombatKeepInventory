@@ -6,9 +6,8 @@ import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.api.CombatService;
-import com.votri.combatkeepinv.core.api.DeathContext;
-import com.votri.combatkeepinv.core.api.DeathResult;
 import com.votri.combatkeepinv.core.damage.DamageSource;
+import com.votri.combatkeepinv.core.death.DeathDecision;
 
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -16,7 +15,6 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
@@ -323,48 +321,77 @@ public final class CombatListener implements Listener {
      * ==========================================================
      */
 
-    private DamageSource createDeathDamageSource(Player victim) {
-        EntityDamageEvent lastDamage = victim.getLastDamageCause();
-        
-        if (lastDamage instanceof EntityDamageByEntityEvent entityEvent) {
-            Entity damager = entityEvent.getDamager();
-            
-            Player attacker = resolveAttackingPlayer(damager);
-            if (attacker != null) {
-                if (damager instanceof Projectile projectile) {
+    private DamageSource createDeathDamageSource(
+            Player victim
+    ) {
+        var damage =
+                victim.getLastDamageCause();
+
+        if (damage instanceof EntityDamageByEntityEvent byEntity) {
+
+            Entity damager =
+                    byEntity.getDamager();
+
+            if (damager instanceof Player attacker) {
+
+                return BukkitDamageSource.playerAttack(
+                                attacker.getUniqueId(),
+                                victim.getUniqueId()
+                        );
+            }
+
+            if (damager instanceof Projectile projectile) {
+
+                if (projectile.getShooter()
+                        instanceof Player attacker) {
+
                     return BukkitDamageSource.playerProjectile(
-                            attacker.getUniqueId(),
-                            projectile.getUniqueId(),
-                            victim.getUniqueId()
-                    );
-                } else {
-                    return BukkitDamageSource.playerAttack(
-                            attacker.getUniqueId(),
-                            victim.getUniqueId()
-                    );
+                                    attacker.getUniqueId(),
+                                    projectile.getUniqueId(),
+                                    victim.getUniqueId()
+                            );
                 }
             }
         }
-        
-        // Fallback / Environment / Mob damage source if no direct player attribution
-        return BukkitDamageSource.environment(victim.getUniqueId());
+
+        return BukkitDamageSource.environment(
+                victim.getUniqueId(),
+                damage
+        );
     }
 
     private void applyCoreDecision(
             PlayerDeathEvent event,
-            DeathResult decision,
-            boolean forceCombatDrop
+            DeathDecision decision,
+            boolean forceDrop
     ) {
-        if (forceCombatDrop || (decision != null && decision.shouldDropInventory())) {
-            boolean keepExp = forceCombatDrop 
-                    ? plugin.shouldKeepCombatDeathExperience() 
-                    : (decision != null && decision.shouldKeepExperience());
-            handleDropInventory(event, keepExp);
+        if (forceDrop) {
+            handleDropInventory(
+                    event,
+                    decision != null
+                            && decision.shouldKeepExperience()
+            );
+            return;
+        }
+
+        if (decision == null) {
+            handleKeepInventory(event);
+            return;
+        }
+
+        if (decision.shouldKeepInventory()) {
+
+            handleKeepInventory(
+                    event,
+                    decision.shouldKeepExperience()
+            );
+
         } else {
-            boolean keepExp = decision != null 
-                    ? decision.shouldKeepExperience() 
-                    : plugin.shouldKeepDeathExperience();
-            handleKeepInventory(event, keepExp);
+
+            handleDropInventory(
+                    event,
+                    decision.shouldKeepExperience()
+            );
         }
     }
 
