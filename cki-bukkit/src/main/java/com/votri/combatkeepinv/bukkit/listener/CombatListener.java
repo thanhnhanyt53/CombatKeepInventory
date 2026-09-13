@@ -1,12 +1,14 @@
 package com.votri.combatkeepinv.bukkit.listener;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
+import com.votri.combatkeepinv.bukkit.bridge.BukkitDamageSource;
 import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
+import com.votri.combatkeepinv.core.damage.DamageSource;
 
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -14,6 +16,7 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
@@ -139,27 +142,25 @@ public final class CombatListener implements Listener {
         /*
          * Build the new core DamageSource.
          */
-        com.votri.combatkeepinv.core.damage.DamageSource source;
+        DamageSource source;
 
         if (event.getDamager()
                 instanceof Projectile projectile) {
 
             source =
-                    com.votri.combatkeepinv.bukkit.bridge
-                            .BukkitDamageSource.playerProjectile(
-                                    attacker.getUniqueId(),
-                                    projectile.getUniqueId(),
-                                    victim.getUniqueId()
-                            );
+                    BukkitDamageSource.playerProjectile(
+                            attacker.getUniqueId(),
+                            projectile.getUniqueId(),
+                            victim.getUniqueId()
+                    );
 
         } else {
 
             source =
-                    com.votri.combatkeepinv.bukkit.bridge
-                            .BukkitDamageSource.playerAttack(
-                                    attacker.getUniqueId(),
-                                    victim.getUniqueId()
-                            );
+                    BukkitDamageSource.playerAttack(
+                            attacker.getUniqueId(),
+                            victim.getUniqueId()
+                    );
         }
 
         /*
@@ -192,7 +193,6 @@ public final class CombatListener implements Listener {
     public void onPlayerDeath(
             PlayerDeathEvent event
     ) {
-
         Player victim =
                 event.getEntity();
 
@@ -202,27 +202,15 @@ public final class CombatListener implements Listener {
         if (plugin.isWorldDisabled(
                 victim.getWorld()
         )) {
-
             return;
         }
 
-        /*
-         * Bypass player always keeps inventory.
-         *
-         * This is not a combat death, so use
-         * death.keep-experience.
-         */
         if (victim.hasPermission(
                 BYPASS_PERMISSION
         )) {
+            handleKeepInventory(event);
 
-            handleKeepInventory(
-                    event
-            );
-
-            combatManager.remove(
-                    uuid
-            );
+            combatManager.remove(uuid);
 
             debugDeath(
                     victim,
@@ -234,48 +222,50 @@ public final class CombatListener implements Listener {
         }
 
         /*
-         * ======================================================
-         * STEP 1 — CHECK COMBAT TAG FIRST
-         * ======================================================
+         * ==========================================================
+         * 1. ACTIVE COMBAT HAS ABSOLUTE PRIORITY
+         * ==========================================================
          */
-
-        boolean inCombat =
-                combatService.isInCombat(
-                        uuid
-                );
-
-        if (inCombat) {
+        if (combatService.isInCombat(uuid)) {
 
             /*
-             * Do not resolve DeathContext.
-             *
-             * Active CombatTag has absolute priority.
+             * Build the final Bukkit damage source if available.
              */
-            DeathResult result =
-                    combatService.evaluateDeath(
-                            uuid,
-                            null
-                    );
+            DamageSource source =
+                    createDeathDamageSource(victim);
 
             /*
-             * Defensive guarantee:
-             * active CombatTag must always drop inventory.
+             * Record final damage in core.
              */
-            if (result == null
-                    || !result.shouldDropInventory()) {
+            plugin.getCombatService()
+                    .getDamageAttributionService()
+                    .recordDamage(source);
 
-                handleDropInventory(
-                        event,
-                        plugin.shouldKeepCombatDeathExperience()
-                );
+            /*
+             * Core context is created, but the active CombatTag
+             * rule remains authoritative here.
+             */
+            var context =
+                    plugin.getCombatService()
+                            .getDeathService()
+                            .createContext(
+                                    uuid,
+                                    source
+                            );
 
-            } else {
+            var decision =
+                    plugin.getCombatService()
+                            .getDeathService()
+                            .evaluate(context);
 
-                applyDeathResult(
-                        event,
-                        result
-                );
-            }
+            /*
+             * Active CombatTag MUST drop inventory.
+             */
+            applyCoreDecision(
+                    event,
+                    decision,
+                    true
+            );
 
             debugDeath(
                     victim,
@@ -283,133 +273,104 @@ public final class CombatListener implements Listener {
                     "ACTIVE_COMBAT_TAG"
             );
 
-            combatManager.remove(
-                    uuid
-            );
+            combatManager.remove(uuid);
 
             return;
         }
 
         /*
-         * ======================================================
-         * STEP 2 — NO ACTIVE COMBAT TAG
-         * ======================================================
+         * ==========================================================
+         * 2. NO ACTIVE COMBAT
+         * ==========================================================
          */
 
-        DeathContext context =
-                resolveDeathContext(
-                        victim
-                );
+        DamageSource source =
+                createDeathDamageSource(victim);
 
-        /*
-         * ======================================================
-         * STEP 3 — DEATH POLICY
-         * ======================================================
-         */
+        var coreContext =
+                plugin.getCombatService()
+                        .getDeathService()
+                        .createContext(
+                                uuid,
+                                source
+                        );
 
-        DeathResult result =
-                combatService.evaluateDeath(
-                        uuid,
-                        context
-                );
+        var decision =
+                plugin.getCombatService()
+                        .getDeathService()
+                        .evaluate(
+                                coreContext
+                        );
 
-        applyDeathResult(
+        applyCoreDecision(
                 event,
-                result
+                decision,
+                false
         );
 
         debugDeath(
                 victim,
-                context,
-                "NO_ACTIVE_COMBAT_TAG"
+                null,
+                "CORE_DEATH_POLICY"
         );
 
-        combatManager.remove(
-                uuid
-        );
+        combatManager.remove(uuid);
     }
 
     /*
      * ==========================================================
-     * DEATH CONTEXT
+     * DEATH DAMAGE SOURCE & DECISION HELPERS
      * ==========================================================
      */
 
-    private DeathContext resolveDeathContext(
-            Player player
-    ) {
-
-        if (player.getKiller() != null) {
-            return DeathContext.PLAYER;
-        }
-
-        if (player.getLastDamageCause()
-                instanceof EntityDamageByEntityEvent damage) {
-
-            Entity damager =
-                    damage.getDamager();
-
-            if (damager instanceof Player) {
-                return DeathContext.PLAYER;
-            }
-
-            if (damager instanceof Projectile projectile) {
-
-                ProjectileSource source =
-                        projectile.getShooter();
-
-                if (source instanceof Player) {
-                    return DeathContext.PROJECTILE;
+    private DamageSource createDeathDamageSource(Player victim) {
+        EntityDamageEvent lastDamage = victim.getLastDamageCause();
+        
+        if (lastDamage instanceof EntityDamageByEntityEvent entityEvent) {
+            Entity damager = entityEvent.getDamager();
+            
+            Player attacker = resolveAttackingPlayer(damager);
+            if (attacker != null) {
+                if (damager instanceof Projectile projectile) {
+                    return BukkitDamageSource.playerProjectile(
+                            attacker.getUniqueId(),
+                            projectile.getUniqueId(),
+                            victim.getUniqueId()
+                    );
+                } else {
+                    return BukkitDamageSource.playerAttack(
+                            attacker.getUniqueId(),
+                            victim.getUniqueId()
+                    );
                 }
-
-                return DeathContext.MOB;
             }
-
-            return DeathContext.MOB;
         }
-
-        return DeathContext.ENVIRONMENT;
+        
+        // Fallback / Environment / Mob damage source if no direct player attribution
+        return BukkitDamageSource.environment(victim.getUniqueId());
     }
 
-    /*
-     * ==========================================================
-     * DEATH RESULT
-     * ==========================================================
-     */
-
-    private void applyDeathResult(
+    private void applyCoreDecision(
             PlayerDeathEvent event,
-            DeathResult result
+            DeathResult decision,
+            boolean forceCombatDrop
     ) {
-
-        if (result == null) {
-
-            handleKeepInventory(
-                    event
-            );
-
-            return;
+        if (forceCombatDrop || (decision != null && decision.shouldDropInventory())) {
+            boolean keepExp = forceCombatDrop 
+                    ? plugin.shouldKeepCombatDeathExperience() 
+                    : (decision != null && decision.shouldKeepExperience());
+            handleDropInventory(event, keepExp);
+        } else {
+            boolean keepExp = decision != null 
+                    ? decision.shouldKeepExperience() 
+                    : plugin.shouldKeepDeathExperience();
+            handleKeepInventory(event, keepExp);
         }
-
-        if (result.shouldDropInventory()) {
-
-            handleDropInventory(
-                    event,
-                    result.shouldKeepExperience()
-            );
-
-            return;
-        }
-
-        handleKeepInventory(
-                event,
-                result.shouldKeepExperience()
-        );
     }
 
     /*
      * ==========================================================
-     * INVENTORY DROP
+     * INVENTORY DROP & KEEP
      * ==========================================================
      */
 
@@ -417,65 +378,27 @@ public final class CombatListener implements Listener {
             PlayerDeathEvent event,
             boolean keepExperience
     ) {
+        Player player = event.getEntity();
 
-        Player player =
-                event.getEntity();
-
-        /*
-         * Keep Bukkit/Minecraft's normal death-drop pipeline.
-         */
         event.getDrops().clear();
 
-        addDrops(
-                event,
-                player.getInventory()
-                        .getStorageContents()
-        );
+        addDrops(event, player.getInventory().getStorageContents());
+        addDrops(event, player.getInventory().getArmorContents());
+        addDrops(event, player.getInventory().getExtraContents());
 
-        addDrops(
-                event,
-                player.getInventory()
-                        .getArmorContents()
-        );
-
-        addDrops(
-                event,
-                player.getInventory()
-                        .getExtraContents()
-        );
-
-        event.setKeepInventory(
-                false
-        );
+        event.setKeepInventory(false);
 
         if (keepExperience) {
-
-            event.setKeepLevel(
-                    true
-            );
-
+            event.setKeepLevel(true);
         } else {
-
-            event.setKeepLevel(
-                    false
-            );
-
-            event.setDroppedExp(
-                    0
-            );
+            event.setKeepLevel(false);
+            event.setDroppedExp(0);
         }
     }
-
-    /*
-     * ==========================================================
-     * INVENTORY KEEP
-     * ==========================================================
-     */
 
     private void handleKeepInventory(
             PlayerDeathEvent event
     ) {
-
         handleKeepInventory(
                 event,
                 plugin.shouldKeepDeathExperience()
@@ -486,83 +409,44 @@ public final class CombatListener implements Listener {
             PlayerDeathEvent event,
             boolean keepExperience
     ) {
-
-        event.setKeepInventory(
-                true
-        );
-
+        event.setKeepInventory(true);
         event.getDrops().clear();
 
         if (keepExperience) {
-
-            event.setKeepLevel(
-                    true
-            );
-
-            event.setDroppedExp(
-                    0
-            );
-
+            event.setKeepLevel(true);
+            event.setDroppedExp(0);
         } else {
-
-            event.setKeepLevel(
-                    false
-            );
-
-            event.setDroppedExp(
-                    0
-            );
+            event.setKeepLevel(false);
+            event.setDroppedExp(0);
         }
     }
-
-    /*
-     * ==========================================================
-     * DROP UTILITIES
-     * ==========================================================
-     */
 
     private void addDrops(
             PlayerDeathEvent event,
             ItemStack[] items
     ) {
-
         if (items == null) {
             return;
         }
 
         for (ItemStack item : items) {
-
-            if (item == null
-                    || item.getType().isAir()) {
-
+            if (item == null || item.getType().isAir()) {
                 continue;
             }
 
-            event.getDrops().add(
-                    item.clone()
-            );
+            event.getDrops().add(item.clone());
         }
     }
-
-    /*
-     * ==========================================================
-     * ATTACKER RESOLUTION
-     * ==========================================================
-     */
 
     private Player resolveAttackingPlayer(
             Entity damager
     ) {
-
         if (damager instanceof Player player) {
             return player;
         }
 
         if (damager instanceof Projectile projectile) {
-
-            ProjectileSource source =
-                    projectile.getShooter();
-
+            ProjectileSource source = projectile.getShooter();
             if (source instanceof Player player) {
                 return player;
             }
@@ -581,7 +465,6 @@ public final class CombatListener implements Listener {
             EntityDamageByEntityEvent event,
             Player victim
     ) {
-
         if (!plugin.isDebugDamage()) {
             return;
         }
@@ -599,7 +482,6 @@ public final class CombatListener implements Listener {
     private void debugDamageIgnored(
             String reason
     ) {
-
         if (!plugin.isDebugDamage()) {
             return;
         }
@@ -615,7 +497,6 @@ public final class CombatListener implements Listener {
             Player victim,
             CombatResult result
     ) {
-
         if (!plugin.isDebugCombat()) {
             return;
         }
@@ -667,7 +548,6 @@ public final class CombatListener implements Listener {
     private long formatSeconds(
             long millis
     ) {
-
         if (millis <= 0L) {
             return 0L;
         }
@@ -679,10 +559,9 @@ public final class CombatListener implements Listener {
 
     private void debugDeath(
             Player player,
-            DeathContext context,
+            Object context,
             String state
     ) {
-
         if (!plugin.isDebugDeath()) {
             return;
         }
