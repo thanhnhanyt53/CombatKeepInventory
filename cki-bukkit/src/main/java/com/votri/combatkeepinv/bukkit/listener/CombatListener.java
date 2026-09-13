@@ -11,6 +11,7 @@ import com.votri.combatkeepinv.core.api.DeathResult;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -60,10 +61,10 @@ public final class CombatListener implements Listener {
      * ==========================================================
      */
 
+    @EventHandler
     public void onEntityDamageByEntity(
             EntityDamageByEntityEvent event
     ) {
-
         if (event.isCancelled()) {
             return;
         }
@@ -77,60 +78,35 @@ public final class CombatListener implements Listener {
                 victim
         );
 
-        /*
-         * Combat system disabled:
-         * no CombatTag is created or refreshed.
-         */
-        if (!plugin.isCombatEnabled()) {
-
-            debugDamageIgnored(
-                    "combat system is disabled."
-            );
-
-            return;
-        }
-
         Player attacker =
                 resolveAttackingPlayer(
                         event.getDamager()
                 );
 
-        /*
-         * Mob/environment damage never creates CombatTag.
-         */
         if (attacker == null) {
-
             debugDamageIgnored(
                     "damager is not player-owned."
             );
-
             return;
         }
 
         if (attacker.getUniqueId().equals(
                 victim.getUniqueId()
         )) {
-
             debugDamageIgnored(
                     "attacker and victim are the same player."
             );
-
             return;
         }
 
-        /*
-         * Bypass remains an invariant of CKI.
-         */
         if (attacker.hasPermission(
                 BYPASS_PERMISSION
         ) || victim.hasPermission(
                 BYPASS_PERMISSION
         )) {
-
             debugDamageIgnored(
                     "bypass permission."
             );
-
             return;
         }
 
@@ -139,17 +115,60 @@ public final class CombatListener implements Listener {
         ) || plugin.isWorldDisabled(
                 victim.getWorld()
         )) {
-
             debugDamageIgnored(
                     "CKI is disabled in this world."
             );
-
             return;
         }
 
         /*
-         * Service owns START/REFRESH decision.
+         * WorldGuard remains authoritative for the Bukkit
+         * entry filter.
          */
+        if (worldGuard != null
+                && !worldGuard.canPvP(
+                attacker,
+                victim
+        )) {
+            debugDamageIgnored(
+                    "WorldGuard does not allow PvP."
+            );
+            return;
+        }
+
+        /*
+         * Build the new core DamageSource.
+         */
+        com.votri.combatkeepinv.core.damage.DamageSource source;
+
+        if (event.getDamager()
+                instanceof Projectile projectile) {
+
+            source =
+                    com.votri.combatkeepinv.bukkit.bridge
+                            .BukkitDamageSource.playerProjectile(
+                                    attacker.getUniqueId(),
+                                    projectile.getUniqueId(),
+                                    victim.getUniqueId()
+                            );
+
+        } else {
+
+            source =
+                    com.votri.combatkeepinv.bukkit.bridge
+                            .BukkitDamageSource.playerAttack(
+                                    attacker.getUniqueId(),
+                                    victim.getUniqueId()
+                            );
+        }
+
+        /*
+         * Record damage before changing combat state.
+         */
+        plugin.getCombatService()
+                .getDamageAttributionService()
+                .recordDamage(source);
+
         CombatResult result =
                 combatService.startCombat(
                         attacker.getUniqueId(),
@@ -169,6 +188,7 @@ public final class CombatListener implements Listener {
      * ==========================================================
      */
 
+    @EventHandler
     public void onPlayerDeath(
             PlayerDeathEvent event
     ) {
