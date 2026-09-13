@@ -1,18 +1,18 @@
 package com.votri.combatkeepinv.bukkit.platform;
 
-import com.votri.combatkeepinv.core.platform.PlatformDetector;
+import com.votri.combatkeepinv.core.internal.DefaultPlatformInfo;
+import com.votri.combatkeepinv.core.platform.PlatformCapability;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 import com.votri.combatkeepinv.core.platform.PlatformType;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Server;
 
+import java.util.EnumSet;
 import java.util.Locale;
 
 /**
- * Detects the Bukkit-family server implementation at runtime.
- *
- * <p>This class belongs exclusively to the Bukkit module and does not
- * expose Bukkit-specific types through the core API.</p>
+ * Detects the Bukkit-family server implementation.
  */
 public final class BukkitPlatformDetector {
 
@@ -22,39 +22,55 @@ public final class BukkitPlatformDetector {
         );
     }
 
-    /**
-     * Detects the currently running Bukkit-family platform.
-     *
-     * @return immutable platform information
-     */
     public static PlatformInfo detect() {
-
-        Server server = Bukkit.getServer();
+        Server server =
+                Bukkit.getServer();
 
         String name =
-                safe(server.getName());
+                safe(
+                        server.getName()
+                );
 
-        String version =
-                safe(server.getVersion());
-
-        String bukkitVersion =
-                safe(server.getBukkitVersion());
+        String implementationVersion =
+                safe(
+                        server.getVersion()
+                );
 
         String minecraftVersion =
-                safe(server.getMinecraftVersion());
+                safe(
+                        server.getMinecraftVersion()
+                );
+
+        String apiVersion =
+                safe(
+                        server.getBukkitVersion()
+                );
 
         PlatformType type =
                 detectType(
                         name,
-                        version
+                        implementationVersion
                 );
 
-        return PlatformDetector.create(
+        EnumSet<PlatformCapability> capabilities =
+                EnumSet.of(
+                        PlatformCapability.COMBAT,
+                        PlatformCapability.DEATH,
+                        PlatformCapability.INVENTORY,
+                        PlatformCapability.DAMAGE_ATTRIBUTION,
+                        PlatformCapability.PLUGIN_MESSAGING,
+                        PlatformCapability.EVENTS
+                );
+
+        return new DefaultPlatformInfo(
                 type,
                 name,
-                version,
+                implementationVersion,
                 minecraftVersion,
-                bukkitVersion
+                apiVersion,
+                false,
+                true,
+                capabilities
         );
     }
 
@@ -73,8 +89,7 @@ public final class BukkitPlatformDetector {
                 );
 
         /*
-         * Purpur must be checked before Paper because Purpur
-         * is based on Paper.
+         * Purpur must be checked before Paper.
          */
         if (normalizedName.contains("purpur")
                 || normalizedVersion.contains("purpur")) {
@@ -106,7 +121,8 @@ public final class BukkitPlatformDetector {
     private static String safe(
             String value
     ) {
-        return value == null || value.isBlank()
+        return value == null
+                || value.isBlank()
                 ? "Unknown"
                 : value;
     }
