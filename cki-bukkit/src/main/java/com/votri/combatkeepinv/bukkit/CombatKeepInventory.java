@@ -9,8 +9,18 @@ import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
+import com.votri.combatkeepinv.core.api.CombatAPI;
 import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.api.CombatService;
+import com.votri.combatkeepinv.core.api.DamageAPI;
+import com.votri.combatkeepinv.core.api.DeathAPI;
+import com.votri.combatkeepinv.core.api.InventoryAPI;
+import com.votri.combatkeepinv.core.api.PlatformAPI;
+import com.votri.combatkeepinv.core.internal.DefaultCombatAPI;
+import com.votri.combatkeepinv.core.internal.DefaultDamageAPI;
+import com.votri.combatkeepinv.core.internal.DefaultDeathAPI;
+import com.votri.combatkeepinv.core.internal.DefaultInventoryAPI;
+import com.votri.combatkeepinv.core.internal.DefaultPlatformAPI;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 
 import org.bukkit.ChatColor;
@@ -49,6 +59,12 @@ public final class CombatKeepInventory extends JavaPlugin {
     private CombatListener combatListener;
 
     private PlatformInfo platformInfo;
+
+    private CombatAPI combatAPI;
+    private DamageAPI damageAPI;
+    private DeathAPI deathAPI;
+    private InventoryAPI inventoryAPI;
+    private PlatformAPI platformAPI;
 
     private File messageFile;
     private FileConfiguration messages;
@@ -116,6 +132,14 @@ public final class CombatKeepInventory extends JavaPlugin {
          */
 
         initializeComponents();
+
+        /*
+         * ==========================================================
+         * CORE API FACADES
+         * ==========================================================
+         */
+
+        initializeCoreAPIFacades();
 
         /*
          * ==========================================================
@@ -192,6 +216,12 @@ public final class CombatKeepInventory extends JavaPlugin {
         combatService = null;
         combatManager = null;
         combatStateBridge = null;
+
+        combatAPI = null;
+        damageAPI = null;
+        deathAPI = null;
+        inventoryAPI = null;
+        platformAPI = null;
 
         getLogger().info(
                 "CombatKeepInventory "
@@ -347,6 +377,47 @@ public final class CombatKeepInventory extends JavaPlugin {
             pvpManagerDetector =
                     new PvPManagerDetector(this);
         }
+    }
+
+    /*
+     * ==========================================================
+     * CORE API FACADES INITIALIZATION
+     * ==========================================================
+     */
+
+    private void initializeCoreAPIFacades() {
+
+        if (combatService == null) {
+            throw new IllegalStateException(
+                    "Combat service has not been initialized."
+            );
+        }
+
+        if (platformInfo == null) {
+            throw new IllegalStateException(
+                    "Platform information has not been initialized."
+            );
+        }
+
+        this.combatAPI = new DefaultCombatAPI(
+                combatService.getSessionManager()
+        );
+
+        this.damageAPI = new DefaultDamageAPI(
+                combatService.getDamageAttributionService()
+        );
+
+        this.deathAPI = new DefaultDeathAPI(
+                combatService.getDeathService()
+        );
+
+        this.inventoryAPI = new DefaultInventoryAPI(
+                combatService.getDefaultInventoryPolicy()
+        );
+
+        this.platformAPI = new DefaultPlatformAPI(
+                platformInfo
+        );
     }
 
     /*
@@ -921,6 +992,14 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         initializeComponents();
 
+        /*
+         * CombatManager có thể thay đổi session manager
+         * khi reload duration.
+         *
+         * Vì vậy phải rebuild các API facade.
+         */
+        initializeCoreAPIFacades();
+
         if (pvpManagerDetector != null) {
             pvpManagerDetector.logWarningIfDetected();
         }
@@ -1016,6 +1095,57 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     public FileConfiguration getMessages() {
         return messages;
+    }
+
+    /*
+     * ==========================================================
+     * API GETTERS
+     * ==========================================================
+     */
+
+    /**
+     * Returns the public Combat API.
+     *
+     * @return combat API facade
+     */
+    public CombatAPI getCombatAPI() {
+        return combatAPI;
+    }
+
+    /**
+     * Returns the public Damage API.
+     *
+     * @return damage API facade
+     */
+    public DamageAPI getDamageAPI() {
+        return damageAPI;
+    }
+
+    /**
+     * Returns the public Death API.
+     *
+     * @return death API facade
+     */
+    public DeathAPI getDeathAPI() {
+        return deathAPI;
+    }
+
+    /**
+     * Returns the public Inventory API.
+     *
+     * @return inventory API facade
+     */
+    public InventoryAPI getInventoryAPI() {
+        return inventoryAPI;
+    }
+
+    /**
+     * Returns the public Platform API.
+     *
+     * @return platform API facade
+     */
+    public PlatformAPI getPlatformAPI() {
+        return platformAPI;
     }
 
     /*
