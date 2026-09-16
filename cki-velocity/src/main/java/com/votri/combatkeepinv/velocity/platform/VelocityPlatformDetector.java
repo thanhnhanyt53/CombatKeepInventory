@@ -48,6 +48,11 @@ public final class VelocityPlatformDetector {
             public boolean isBackend() {
                 return false;
             }
+
+            @Override
+            public boolean isProxy() {
+                return true;
+            }
         };
     }
 }
