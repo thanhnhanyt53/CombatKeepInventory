@@ -12,7 +12,7 @@
 
     <groupId>com.votri</groupId>
     <artifactId>CombatKeepInventory</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>pom</packaging>
 
     <name>CombatKeepInventory</name>
@@ -29,6 +29,7 @@
         <module>cki-core</module>
         <module>cki-bukkit</module>
         <module>cki-velocity</module>
+        <module>cki-universal</module>
     </modules>
 
     <!-- ====================================================== -->
