@@ -43,6 +43,12 @@ public final class VelocityPlatformDetector {
             public boolean supports(PlatformCapability capability) {
                 return false;
             }
+
+            @Override
+            public boolean isBackend() {
+                return false;
+            }
         };
     }
 }
+
