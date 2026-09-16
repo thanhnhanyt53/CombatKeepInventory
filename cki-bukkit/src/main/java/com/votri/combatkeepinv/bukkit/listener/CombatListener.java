@@ -2,10 +2,8 @@ package com.votri.combatkeepinv.bukkit.listener;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
 import com.votri.combatkeepinv.bukkit.bridge.BukkitDamageSource;
-import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.core.api.CombatResult;
-import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.damage.DamageSource;
 import com.votri.combatkeepinv.core.death.DeathDecision;
 
@@ -33,24 +31,15 @@ public final class CombatListener implements Listener {
             "combatkeepinventory.bypass";
 
     private final CombatKeepInventory plugin;
-    private final CombatManager combatManager;
-    private final CombatService combatService;
     private final WorldGuardHook worldGuard;
 
     public CombatListener(
             CombatKeepInventory plugin,
-            CombatService combatService,
             WorldGuardHook worldGuard
     ) {
 
         this.plugin =
                 plugin;
-
-        this.combatManager =
-                plugin.getCombatManager();
-
-        this.combatService =
-                combatService;
 
         this.worldGuard =
                 worldGuard;
@@ -169,7 +158,7 @@ public final class CombatListener implements Listener {
                 .recordDamage(source);
 
         CombatResult result =
-                combatService.startCombat(
+                plugin.getCombatService().startCombat(
                         attacker.getUniqueId(),
                         victim.getUniqueId()
                 );
@@ -208,7 +197,7 @@ public final class CombatListener implements Listener {
         )) {
             handleKeepInventory(event);
 
-            combatManager.remove(uuid);
+            plugin.getCombatManager().remove(uuid);
 
             debugDeath(
                     victim,
@@ -224,7 +213,7 @@ public final class CombatListener implements Listener {
          * 1. ACTIVE COMBAT HAS ABSOLUTE PRIORITY
          * ==========================================================
          */
-        if (combatService.isInCombat(uuid)) {
+        if (plugin.getCombatService().isInCombat(uuid)) {
 
             /*
              * Build the final Bukkit damage source if available.
@@ -271,7 +260,7 @@ public final class CombatListener implements Listener {
                     "ACTIVE_COMBAT_TAG"
             );
 
-            combatManager.remove(uuid);
+            plugin.getCombatManager().remove(uuid);
 
             return;
         }
@@ -312,7 +301,7 @@ public final class CombatListener implements Listener {
                 "CORE_DEATH_POLICY"
         );
 
-        combatManager.remove(uuid);
+        plugin.getCombatManager().remove(uuid);
     }
 
     /*
@@ -368,8 +357,7 @@ public final class CombatListener implements Listener {
         if (forceDrop) {
             handleDropInventory(
                     event,
-                    decision != null
-                            && decision.shouldKeepExperience()
+                    plugin.shouldKeepCombatDeathExperience()
             );
             return;
         }
@@ -529,22 +517,22 @@ public final class CombatListener implements Listener {
         }
 
         boolean attackerTagged =
-                combatService.isInCombat(
+                plugin.getCombatService().isInCombat(
                         attacker.getUniqueId()
                 );
 
         boolean victimTagged =
-                combatService.isInCombat(
+                plugin.getCombatService().isInCombat(
                         victim.getUniqueId()
                 );
 
         long attackerRemaining =
-                combatService.getRemainingCombatMillis(
+                plugin.getCombatService().getRemainingCombatMillis(
                         attacker.getUniqueId()
                 );
 
         long victimRemaining =
-                combatService.getRemainingCombatMillis(
+                plugin.getCombatService().getRemainingCombatMillis(
                         victim.getUniqueId()
                 );
 
