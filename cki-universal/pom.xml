@@ -33,7 +33,7 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Dependencies cần thiết để ProGuard phân tích kiểu dữ liệu -->
+        <!-- APIs cho ProGuard phân tích kiểu dữ liệu -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -56,7 +56,7 @@
 
     <build>
         <plugins>
-            <!-- 1. Gộp toàn bộ module và resource thành 1 JAR -->
+            <!-- 1. Maven Shade Plugin: Gom toàn bộ module thành 1 JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -75,7 +75,7 @@
                 </executions>
             </plugin>
 
-            <!-- 2. Mã hóa ProGuard đồng bộ cho cả Bukkit và Velocity -->
+            <!-- 2. ProGuard: Đọc trực tiếp file JAR từ Shade Plugin làm đầu vào -->
             <plugin>
                 <groupId>com.github.wvengen</groupId>
                 <artifactId>proguard-maven-plugin</artifactId>
@@ -95,7 +95,12 @@
                         </goals>
                         <configuration>
                             <obfuscate>true</obfuscate>
-                            <attach>false</attach>
+                            <attach>true</attach>
+                            <!-- Chỉ định file input là file JAR đã được Shade đóng gói -->
+                            <injar>CombatKeepInventory-Universal-${project.version}.jar</injar>
+                            <!-- File đầu ra sau khi mã hóa hoàn tất -->
+                            <outjar>CombatKeepInventory-Universal-${project.version}-final.jar</outjar>
+
                             <libs>
                                 <lib>${java.home}/jmods/java.base.jmod</lib>
                                 <lib>${java.home}/jmods/java.logging.jmod</lib>
@@ -103,22 +108,22 @@
                             <options>
                                 <option>-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,Signature,InnerClasses,EnclosingMethod</option>
 
-                                <!-- Giữ Entrypoint của Bukkit -->
+                                <!-- Bukkit Entrypoint & Event -->
                                 <option>-keep public class com.votri.combatkeepinv.bukkit.CombatKeepInventory { *; }</option>
                                 <option>-keepclasseswithmembers,includedescriptorclasses class * { @org.bukkit.event.EventHandler &lt;methods&gt;; }</option>
 
-                                <!-- Giữ Entrypoint của Velocity -->
+                                <!-- Velocity Entrypoint & Event -->
                                 <option>-keep public class com.votri.combatkeepinv.velocity.CombatKeepInventoryVelocity { *; }</option>
                                 <option>-keep @com.velocitypowered.api.plugin.Plugin public class * { *; }</option>
                                 <option>-keepclassmembers class * { @com.velocitypowered.api.event.Subscribe &lt;methods&gt;; }</option>
 
-                                <!-- Giữ Core API -->
+                                <!-- Core API & Platform -->
                                 <option>-keep public class com.votri.combatkeepinv.core.api.** { *; }</option>
                                 <option>-keep public interface com.votri.combatkeepinv.core.api.** { *; }</option>
                                 <option>-keep public enum com.votri.combatkeepinv.core.api.** { *; }</option>
                                 <option>-keep public class com.votri.combatkeepinv.core.platform.** { *; }</option>
 
-                                <!-- Ignore cảnh báo từ nền tảng bên ngoài -->
+                                <!-- Warning suppress -->
                                 <option>-dontwarn org.bukkit.**</option>
                                 <option>-dontwarn io.papermc.paper.**</option>
                                 <option>-dontwarn com.velocitypowered.**</option>
