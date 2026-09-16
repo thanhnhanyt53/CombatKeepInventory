@@ -9,7 +9,7 @@ import com.votri.combatkeepinv.core.api.CombatState;
 import com.votri.combatkeepinv.core.api.CombatTag;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
-import com.votri.combatkeepinv.core.api.InventoryPolicy;
+import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
 
 import com.votri.combatkeepinv.core.combat.CombatReason;
 import com.votri.combatkeepinv.core.combat.CombatSessionManager;
