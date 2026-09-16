@@ -9,8 +9,8 @@ import com.votri.combatkeepinv.core.api.CombatState;
 import com.votri.combatkeepinv.core.api.CombatTag;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
-import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
-
+import com.votri.combatkeepinv.core.inventory.InventoryPolicy.DROP;
+import com.votri.combatkeepinv.core.inventory.InventoryPolicy.KEEP;
 import com.votri.combatkeepinv.core.combat.CombatReason;
 import com.votri.combatkeepinv.core.combat.CombatSessionManager;
 
@@ -18,6 +18,7 @@ import com.votri.combatkeepinv.core.damage.DamageAttributionService;
 
 import com.votri.combatkeepinv.core.death.DeathDecision;
 import com.votri.combatkeepinv.core.death.DeathService;
+
 
 import com.votri.combatkeepinv.core.internal.DefaultDeathService;
 import com.votri.combatkeepinv.core.internal.DefaultInventoryPolicy;
