@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -13,7 +11,6 @@
     </parent>
 
     <artifactId>cki-universal</artifactId>
-    <name>CombatKeepInventory Universal</name>
     <packaging>jar</packaging>
 
     <dependencies>
@@ -21,42 +18,24 @@
             <groupId>com.votri</groupId>
             <artifactId>cki-core</artifactId>
             <version>${project.version}</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.votri</groupId>
             <artifactId>cki-bukkit</artifactId>
             <version>${project.version}</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.votri</groupId>
             <artifactId>cki-velocity</artifactId>
             <version>${project.version}</version>
-        </dependency>
-
-        <!-- APIs cho ProGuard phân tích kiểu dữ liệu -->
-        <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
-            <version>${paper.api.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.velocitypowered</groupId>
-            <artifactId>velocity-api</artifactId>
-            <version>${velocity.api.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.sk89q.worldguard</groupId>
-            <artifactId>worldguard-bukkit</artifactId>
-            <version>${worldguard.version}</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- 1. Maven Shade Plugin: Gom toàn bộ module thành 1 JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -74,72 +53,10 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <!-- 2. ProGuard: Đọc trực tiếp file JAR từ Shade Plugin làm đầu vào -->
-            <plugin>
-                <groupId>com.github.wvengen</groupId>
-                <artifactId>proguard-maven-plugin</artifactId>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.guardsquare</groupId>
-                        <artifactId>proguard-base</artifactId>
-                        <version>${proguard.version}</version>
-                        <scope>runtime</scope>
-                    </dependency>
-                </dependencies>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>proguard</goal>
-                        </goals>
-                        <configuration>
-                            <obfuscate>true</obfuscate>
-                            <attach>true</attach>
-                            <!-- Chỉ định file input là file JAR đã được Shade đóng gói -->
-                            <injar>CombatKeepInventory-Universal-${project.version}.jar</injar>
-                            <!-- File đầu ra sau khi mã hóa hoàn tất -->
-                            <outjar>CombatKeepInventory-Universal-${project.version}-final.jar</outjar>
-
-                            <libs>
-                                <lib>${java.home}/jmods/java.base.jmod</lib>
-                                <lib>${java.home}/jmods/java.logging.jmod</lib>
-                            </libs>
-                            <options>
-                                <option>-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,Signature,InnerClasses,EnclosingMethod</option>
-
-                                <!-- Bukkit Entrypoint & Event -->
-                                <option>-keep public class com.votri.combatkeepinv.bukkit.CombatKeepInventory { *; }</option>
-                                <option>-keepclasseswithmembers,includedescriptorclasses class * { @org.bukkit.event.EventHandler &lt;methods&gt;; }</option>
-
-                                <!-- Velocity Entrypoint & Event -->
-                                <option>-keep public class com.votri.combatkeepinv.velocity.CombatKeepInventoryVelocity { *; }</option>
-                                <option>-keep @com.velocitypowered.api.plugin.Plugin public class * { *; }</option>
-                                <option>-keepclassmembers class * { @com.velocitypowered.api.event.Subscribe &lt;methods&gt;; }</option>
-
-                                <!-- Core API & Platform -->
-                                <option>-keep public class com.votri.combatkeepinv.core.api.** { *; }</option>
-                                <option>-keep public interface com.votri.combatkeepinv.core.api.** { *; }</option>
-                                <option>-keep public enum com.votri.combatkeepinv.core.api.** { *; }</option>
-                                <option>-keep public class com.votri.combatkeepinv.core.platform.** { *; }</option>
-
-                                <!-- Warning suppress -->
-                                <option>-dontwarn org.bukkit.**</option>
-                                <option>-dontwarn io.papermc.paper.**</option>
-                                <option>-dontwarn com.velocitypowered.**</option>
-                                <option>-dontwarn net.kyori.**</option>
-                                <option>-dontwarn org.slf4j.**</option>
-                                <option>-dontwarn com.sk89q.worldguard.**</option>
-                                <option>-dontwarn org.yaml.snakeyaml.**</option>
-                                <option>-dontpreverify</option>
-                            </options>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 </project>
+
 
 
 
