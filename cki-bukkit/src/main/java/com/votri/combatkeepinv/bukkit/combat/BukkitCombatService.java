@@ -9,8 +9,8 @@ import com.votri.combatkeepinv.core.api.CombatState;
 import com.votri.combatkeepinv.core.api.CombatTag;
 import com.votri.combatkeepinv.core.api.DeathContext;
 import com.votri.combatkeepinv.core.api.DeathResult;
-import com.votri.combatkeepinv.core.inventory.InventoryPolicy.DROP;
-import com.votri.combatkeepinv.core.inventory.InventoryPolicy.KEEP;
+import com.votri.combatkeepinv.core.inventory.InventoryAction;
+import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
 import com.votri.combatkeepinv.core.combat.CombatReason;
 import com.votri.combatkeepinv.core.combat.CombatSessionManager;
 
@@ -261,7 +261,7 @@ public final class BukkitCombatService
     ) {
         if (player == null) {
             return new DeathResult(
-                    InventoryPolicy.KEEP,
+                    InventoryAction.KEEP,
                     true,
                     false
             );
@@ -282,7 +282,7 @@ public final class BukkitCombatService
                             );
 
             return new DeathResult(
-                    InventoryPolicy.DROP,
+                    InventoryAction.DROP,
                     keepExperience,
                     true
             );
@@ -307,8 +307,8 @@ public final class BukkitCombatService
 
         return new DeathResult(
                 decision.shouldKeepInventory()
-                        ? InventoryPolicy.KEEP
-                        : InventoryPolicy.DROP,
+                        ? InventoryAction.KEEP
+                        : InventoryAction.DROP,
                 decision.shouldKeepExperience(),
                 decision.shouldKeepInventory() == false
                         && coreContext.wasPlayerCaused()
@@ -369,7 +369,7 @@ public final class BukkitCombatService
                         );
 
         return new DefaultInventoryPolicy(
-                com.votri.combatkeepinv.core.inventory.InventoryAction.KEEP,
+                InventoryAction.KEEP,
                 keepMainInventory,
                 keepArmor,
                 keepOffhand,
@@ -388,3 +388,4 @@ public final class BukkitCombatService
                 && !attacker.equals(victim);
     }
 }
+
