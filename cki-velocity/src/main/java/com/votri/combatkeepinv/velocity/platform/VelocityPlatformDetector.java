@@ -1,5 +1,6 @@
 package com.votri.combatkeepinv.velocity.platform;
 
+import com.votri.combatkeepinv.core.platform.PlatformCapability;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 import com.votri.combatkeepinv.core.platform.PlatformType;
 import com.velocitypowered.api.proxy.ProxyServer;
@@ -35,7 +36,12 @@ public final class VelocityPlatformDetector {
 
             @Override
             public String getMinecraftVersion() {
-                return version.getMinecraftVersion();
+                return version.getVersion();
+            }
+
+            @Override
+            public boolean supports(PlatformCapability capability) {
+                return false;
             }
         };
     }
