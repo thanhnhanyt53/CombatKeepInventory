@@ -14,7 +14,7 @@ softdepend:
 commands:
   cki:
     description: CombatKeepInventory administration command.
-    usage: /cki <reload|status>
+    usage: /cki <reload|info>
     permission: combatkeepinventory.admin
 
 permissions:
