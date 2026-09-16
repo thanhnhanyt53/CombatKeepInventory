@@ -1,63 +1,42 @@
 package com.votri.combatkeepinv.velocity.platform;
 
-import com.votri.combatkeepinv.core.platform.PlatformDetector;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 import com.votri.combatkeepinv.core.platform.PlatformType;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.util.ProxyVersion;
 
-import java.util.Objects;
-
-/**
- * Detects the Velocity proxy runtime.
- */
 public final class VelocityPlatformDetector {
 
     private VelocityPlatformDetector() {
-        throw new UnsupportedOperationException(
-                "Utility class"
-        );
+        // Private constructor to prevent instantiation
     }
 
     /**
-     * Detects the current Velocity runtime.
-     *
-     * @param proxy Velocity proxy instance
-     * @return immutable platform information
+     * Detects and constructs platform information for Velocity proxy.
      */
-    public static PlatformInfo detect(
-            ProxyServer proxy
-    ) {
-        Objects.requireNonNull(
-                proxy,
-                "proxy"
-        );
+    public static PlatformInfo detect(ProxyServer proxy) {
+        ProxyVersion version = proxy.getVersion();
 
-        String implementationName =
-                "Velocity";
+        return new PlatformInfo() {
+            @Override
+            public PlatformType getType() {
+                return PlatformType.VELOCITY;
+            }
 
-        String implementationVersion =
-                proxy.getVersion()
-                        .getVersion();
+            @Override
+            public String getImplementationName() {
+                return version.getName();
+            }
 
-        /*
-         * Velocity is a proxy, therefore there is no single
-         * Minecraft backend version that can be assigned here.
-         */
-        String minecraftVersion =
-                "Unknown";
+            @Override
+            public String getImplementationVersion() {
+                return version.getVersion();
+            }
 
-        /*
-         * Velocity does not expose a Bukkit-style API version.
-         */
-        String apiVersion =
-                implementationVersion;
-
-        return PlatformDetector.create(
-                PlatformType.VELOCITY,
-                implementationName,
-                implementationVersion,
-                minecraftVersion,
-                apiVersion
-        );
+            @Override
+            public String getMinecraftVersion() {
+                return version.getMinecraftVersion();
+            }
+        };
     }
 }
