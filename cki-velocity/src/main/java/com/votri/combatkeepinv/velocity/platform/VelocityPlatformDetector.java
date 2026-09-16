@@ -40,8 +40,13 @@ public final class VelocityPlatformDetector {
             }
 
             @Override
-            public boolean supports(PlatformCapability capability) {
-                return false;
+            public String getApiVersion() {
+                return version.getVersion();
+            }
+
+            @Override
+            public boolean isProxy() {
+                return true;
             }
 
             @Override
@@ -50,8 +55,8 @@ public final class VelocityPlatformDetector {
             }
 
             @Override
-            public boolean isProxy() {
-                return true;
+            public boolean supports(PlatformCapability capability) {
+                return false;
             }
         };
     }
