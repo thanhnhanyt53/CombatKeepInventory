@@ -32,7 +32,7 @@ import java.nio.file.StandardCopyOption;
 @Plugin(
         id = "combatkeepinventory",
         name = "CombatKeepInventory",
-        version = "1.1.0",
+        version = "1.2.0",
         authors = {
                 "ThanhNhan"
         }
