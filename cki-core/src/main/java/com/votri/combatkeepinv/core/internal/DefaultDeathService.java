@@ -52,9 +52,7 @@ public final class DefaultDeathService
 
         Optional<CombatSession> combat =
                 combatSessionManager.getSession(playerId)
-                        .filter(session ->
-                                session.getState()
-                                        == CombatState.ACTIVE);
+                        .filter(CombatSession::isActive);
 
         return new DefaultDeathContext(
                 playerId,
@@ -64,7 +62,7 @@ public final class DefaultDeathService
                         damageSource,
                         attribution
                 ),
-                attribution.getKillerId(),
+                attribution.getKillerId().orElse(null),
                 combat,
                 attribution.isPlayerCaused(),
                 attribution.isDirectPvP(),
@@ -77,13 +75,16 @@ public final class DefaultDeathService
     public DeathDecision evaluate(
             DeathContext context
     ) {
+        /*
+         * CKI 1.2.0 invariant:
+         *
+         * 1. Player-caused death -> DROP.
+         * 2. Any death while an active CombatTag exists -> DROP.
+         * 3. Non-player death outside combat -> KEEP.
+         */
         boolean keepInventory =
-                context.wasInCombat()
-                        && !context.wasPlayerCaused();
-
-        if (context.wasPlayerCaused()) {
-            keepInventory = false;
-        }
+                !context.wasPlayerCaused()
+                        && !context.wasInCombat();
 
         InventoryAction action =
                 keepInventory

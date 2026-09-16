@@ -76,7 +76,7 @@ public final class DefaultDamageAttributionService
     public void clearDamageHistory(
             UUID victimId
     ) {
-        lastDamage.remove(victim);
+        lastDamage.remove(victimId);
     }
 
     @Override
