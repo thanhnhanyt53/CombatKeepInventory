@@ -10,7 +10,6 @@ import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
 import com.votri.combatkeepinv.core.api.CombatAPI;
-import com.votri.combatkeepinv.core.api.CombatKeepInventoryAPI;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.api.DamageAPI;
 import com.votri.combatkeepinv.core.api.DeathAPI;
@@ -46,9 +45,9 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.1.0";
+            "1.2.0";
 
-    private static final int CONFIG_VERSION = 2;
+    private static final int CONFIG_VERSION = 3;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -357,14 +356,16 @@ public final class CombatKeepInventory extends JavaPlugin {
             );
         }
 
-        if (combatService == null) {
-
-            combatService =
-                    new BukkitCombatService(
-                            this,
-                            combatManager
-                    );
-        }
+        /*
+         * CombatManager may replace its core session manager during
+         * reload. BukkitCombatService captures that manager, so the
+         * adapter must be recreated after every component rebuild.
+         */
+        combatService =
+                new BukkitCombatService(
+                        this,
+                        combatManager
+                );
 
         if (worldGuardHook == null) {
 
@@ -456,16 +457,21 @@ public final class CombatKeepInventory extends JavaPlugin {
      * ==========================================================
      */
 
+    private BukkitCombatKeepInventoryAPI registeredApi;
+
     private void registerApi() {
 
+        if (registeredApi != null) {
+            return;
+        }
+
+        BukkitCombatKeepInventoryAPI api =
+                new BukkitCombatKeepInventoryAPI(this);
+
         try {
-
-            CombatKeepInventoryAPI.Provider.register(
-                    new BukkitCombatKeepInventoryAPI(this)
-            );
-
+            BukkitCombatKeepInventoryAPI.register(api);
+            registeredApi = api;
         } catch (IllegalStateException exception) {
-
             getLogger().warning(
                     "CombatKeepInventory API was already registered."
             );
@@ -474,21 +480,15 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     private void unregisterApi() {
 
-        try {
-
-            CombatKeepInventoryAPI api =
-                    CombatKeepInventoryAPI.get();
-
-            if (api instanceof BukkitCombatKeepInventoryAPI) {
-
-                CombatKeepInventoryAPI.Provider.unregister(
-                        api
-                );
-            }
-
-        } catch (IllegalStateException ignored) {
-            // API was never registered.
+        if (registeredApi == null) {
+            return;
         }
+
+        BukkitCombatKeepInventoryAPI.unregister(
+                registeredApi
+        );
+
+        registeredApi = null;
     }
 
     /*
@@ -506,7 +506,6 @@ public final class CombatKeepInventory extends JavaPlugin {
         combatListener =
                 new CombatListener(
                         this,
-                        combatService,
                         worldGuardHook
                 );
 
