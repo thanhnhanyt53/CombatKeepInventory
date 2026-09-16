@@ -5,17 +5,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.votri.combatkeepinv</groupId>
-        <artifactId>combatkeepinventory-parent</artifactId>
-        <!-- Điền đúng phiên bản version ở root pom của bạn -->
-        <version>1.2.0</version> 
+        <groupId>com.votri</groupId>
+        <artifactId>CombatKeepInventory</artifactId>
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>cki-universal</artifactId>
     <packaging>jar</packaging>
 
     <dependencies>
-        <!-- Gộp module Bukkit (sẽ tự động kéo theo cki-core) -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cki-bukkit</artifactId>
@@ -23,7 +22,6 @@
             <scope>compile</scope>
         </dependency>
 
-        <!-- Gộp module Velocity (sẽ tự động kéo theo cki-core) -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cki-velocity</artifactId>
@@ -34,7 +32,6 @@
 
     <build>
         <plugins>
-            <!-- Sử dụng Maven Shade Plugin để đóng gói tất cả thành 1 file JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -48,7 +45,6 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
-                            <!-- Tên file JAR xuất ra cuối cùng -->
                             <finalName>CombatKeepInventory-Universal-${project.version}</finalName>
                         </configuration>
                     </execution>
@@ -57,5 +53,6 @@
         </plugins>
     </build>
 </project>
+
 
 
