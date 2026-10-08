@@ -116,6 +116,8 @@ public final class CombatManager {
                 attacker
         );
 
+        sessionManager.recordDamage(attacker, victim, System.currentTimeMillis());
+
         stateBridge.publishStart(
                 attacker,
                 victim,
@@ -147,6 +149,8 @@ public final class CombatManager {
                 victim,
                 attacker
         );
+
+        sessionManager.recordDamage(attacker, victim, System.currentTimeMillis());
 
         stateBridge.publishRefresh(
                 attacker,
