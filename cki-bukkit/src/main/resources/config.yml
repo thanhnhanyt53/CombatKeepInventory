@@ -2,7 +2,7 @@
 # CombatKeepInventory
 # ============================================================
 
-config-version: 3
+config-version: 4
 
 # ============================================================
 # Platform
@@ -47,8 +47,8 @@ death:
   # keep their inventory.
   pve-keeps-inventory: true
 
-  # Experience behavior for normal deaths.
-  keep-experience: true
+  # Experience behavior is configured by the reason-specific policies below.
+  # The old death.keep-experience key is still accepted for legacy configs.
 
 
 # ============================================================
@@ -57,8 +57,53 @@ death:
 
 inventory:
 
-  # Experience behavior while processing combat death.
-  keep-experience: true
+  # Legacy/default inventory component settings.
+  keep-main: true
+  keep-armor: true
+  keep-offhand: true
+  keep-hotbar: true
+  # Legacy/default component settings. Reason-specific policies below are authoritative.
+  keep-levels: true
+
+  # 1.2.5 reason-specific inventory policies.
+  # action: KEEP, DROP, PARTIAL or VANILLA
+  policies:
+
+    combat-death:
+      action: DROP
+      keep-main: false
+      keep-armor: false
+      keep-offhand: false
+      keep-hotbar: false
+      keep-experience: true
+      keep-levels: true
+
+    player-kill:
+      action: DROP
+      keep-main: false
+      keep-armor: false
+      keep-offhand: false
+      keep-hotbar: false
+      keep-experience: true
+      keep-levels: true
+
+    pve-death:
+      action: KEEP
+      keep-main: true
+      keep-armor: true
+      keep-offhand: true
+      keep-hotbar: true
+      keep-experience: true
+      keep-levels: true
+
+    unknown:
+      action: VANILLA
+      keep-main: true
+      keep-armor: true
+      keep-offhand: true
+      keep-hotbar: true
+      keep-experience: true
+      keep-levels: true
 
 
 # ============================================================
