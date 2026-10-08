@@ -15,6 +15,7 @@ import com.votri.combatkeepinv.core.combat.CombatSessionManager;
 import com.votri.combatkeepinv.core.damage.DamageAttributionService;
 
 import com.votri.combatkeepinv.core.death.DeathDecision;
+import com.votri.combatkeepinv.core.death.DeathReason;
 import com.votri.combatkeepinv.core.death.DeathService;
 
 import com.votri.combatkeepinv.core.internal.DefaultDeathService;
@@ -22,6 +23,8 @@ import com.votri.combatkeepinv.core.internal.DefaultInventoryPolicy;
 
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -74,7 +77,13 @@ public final class BukkitCombatService
                         sessionManager,
                         damageService,
                         platformInfo,
-                        defaultInventoryPolicy
+                        defaultInventoryPolicy,
+                        createPolicy(
+                                "inventory.policies.combat-death",
+                                com.votri.combatkeepinv.core.inventory.InventoryAction.DROP,
+                                false
+                        ),
+                        createDeathPolicies()
                 );
     }
 
@@ -238,34 +247,19 @@ public final class BukkitCombatService
             DeathContext context
     ) {
         if (player == null) {
-            // Sử dụng InventoryPolicy từ API core thay vì InventoryAction
             return new DeathResult(
-                    InventoryPolicy.KEEP,
+                    InventoryPolicy.DEFAULT,
                     true,
                     false
             );
         }
 
-        if (combatManager.isInCombat(player)) {
-            boolean keepExperience =
-                    plugin.getConfig()
-                            .getBoolean(
-                                    "death.keep-experience",
-                                    true
-                            );
-
-            return new DeathResult(
-                    InventoryPolicy.DROP,
-                    keepExperience,
-                    true
-            );
-        }
-
         com.votri.combatkeepinv.core.damage.DamageSource source =
-                BukkitDamageSource.fromLegacyContext(
-                        player,
-                        context
-                );
+                damageService.getLastDamage(player)
+                        .orElseGet(() -> BukkitDamageSource.fromLegacyContext(
+                                player,
+                                context
+                        ));
 
         com.votri.combatkeepinv.core.death.DeathContext coreContext =
                 deathService.createContext(
@@ -278,16 +272,14 @@ public final class BukkitCombatService
                         coreContext
                 );
 
-        // Khớp kiểu trả về của DeathResult yêu cầu InventoryPolicy API
-        InventoryPolicy resolvedPolicy = decision.shouldKeepInventory()
-                ? InventoryPolicy.KEEP
-                : InventoryPolicy.DROP;
+        InventoryPolicy resolvedPolicy = toApiInventoryPolicy(
+                decision.getInventoryPolicy().getAction()
+        );
 
         return new DeathResult(
                 resolvedPolicy,
                 decision.shouldKeepExperience(),
-                !decision.shouldKeepInventory()
-                        && coreContext.wasPlayerCaused()
+                coreContext.wasInCombat()
         );
     }
 
@@ -303,8 +295,12 @@ public final class BukkitCombatService
 
     private com.votri.combatkeepinv.core.inventory.InventoryPolicy createDefaultInventoryPolicy() {
         boolean keepExperience =
-                plugin.getConfig()
-                        .getBoolean(
+                plugin.getConfig().contains("inventory.policies.pve-death.keep-experience")
+                        ? plugin.getConfig().getBoolean(
+                                "inventory.policies.pve-death.keep-experience",
+                                true
+                        )
+                        : plugin.getConfig().getBoolean(
                                 "death.keep-experience",
                                 true
                         );
@@ -353,6 +349,75 @@ public final class BukkitCombatService
                 keepExperience,
                 keepLevels
         );
+    }
+
+
+    private Map<DeathReason, com.votri.combatkeepinv.core.inventory.InventoryPolicy> createDeathPolicies() {
+        Map<DeathReason, com.votri.combatkeepinv.core.inventory.InventoryPolicy> policies =
+                new EnumMap<>(DeathReason.class);
+
+        policies.put(DeathReason.PLAYER, createPolicy(
+                "inventory.policies.player-kill",
+                com.votri.combatkeepinv.core.inventory.InventoryAction.DROP, false));
+        policies.put(DeathReason.PLAYER_PROJECTILE, createPolicy(
+                "inventory.policies.player-kill",
+                com.votri.combatkeepinv.core.inventory.InventoryAction.DROP, false));
+        policies.put(DeathReason.PLAYER_EXPLOSION, createPolicy(
+                "inventory.policies.player-kill",
+                com.votri.combatkeepinv.core.inventory.InventoryAction.DROP, false));
+
+        for (DeathReason reason : new DeathReason[]{
+                DeathReason.ENTITY, DeathReason.ENVIRONMENT,
+                DeathReason.VOID, DeathReason.FIRE, DeathReason.LAVA}) {
+            policies.put(reason, createPolicy(
+                    "inventory.policies.pve-death",
+                    com.votri.combatkeepinv.core.inventory.InventoryAction.KEEP, true));
+        }
+
+        policies.put(DeathReason.UNKNOWN, createPolicy(
+                "inventory.policies.unknown",
+                com.votri.combatkeepinv.core.inventory.InventoryAction.VANILLA, true));
+
+        return policies;
+    }
+
+    private com.votri.combatkeepinv.core.inventory.InventoryPolicy createPolicy(
+            String path,
+            com.votri.combatkeepinv.core.inventory.InventoryAction defaultAction,
+            boolean defaultKeep
+    ) {
+        String actionName = getConfig().getString(path + ".action", defaultAction.name());
+        com.votri.combatkeepinv.core.inventory.InventoryAction action = defaultAction;
+        if (actionName != null) {
+            try {
+                action = com.votri.combatkeepinv.core.inventory.InventoryAction.valueOf(
+                        actionName.trim().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                // Keep the safe default.
+            }
+        }
+
+        boolean keepMain = getConfig().getBoolean(path + ".keep-main", defaultKeep);
+        boolean keepArmor = getConfig().getBoolean(path + ".keep-armor", defaultKeep);
+        boolean keepOffhand = getConfig().getBoolean(path + ".keep-offhand", defaultKeep);
+        boolean keepHotbar = getConfig().getBoolean(path + ".keep-hotbar", defaultKeep);
+        boolean keepExperience = getConfig().getBoolean(path + ".keep-experience", defaultKeep);
+        boolean keepLevels = getConfig().getBoolean(path + ".keep-levels", keepExperience);
+
+        return new DefaultInventoryPolicy(
+                action, keepMain, keepArmor, keepOffhand, keepHotbar,
+                keepExperience, keepLevels);
+    }
+
+    private InventoryPolicy toApiInventoryPolicy(
+            com.votri.combatkeepinv.core.inventory.InventoryAction action
+    ) {
+        return switch (action) {
+            case KEEP -> InventoryPolicy.KEEP;
+            case DROP -> InventoryPolicy.DROP;
+            case PARTIAL -> InventoryPolicy.PARTIAL;
+            case VANILLA -> InventoryPolicy.DEFAULT;
+        };
     }
 
     private boolean isValidPair(
