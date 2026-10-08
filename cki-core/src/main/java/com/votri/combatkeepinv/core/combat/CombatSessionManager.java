@@ -23,6 +23,14 @@ public interface CombatSessionManager {
             UUID playerId,
             UUID opponentId
     );
+    /**
+ * Records the direction of the latest player-versus-player hit.
+ */
+    void recordDamage(
+            UUID attackerId,
+            UUID victimId,
+            long timestamp
+    );
 
     boolean endCombat(
             UUID playerId,
