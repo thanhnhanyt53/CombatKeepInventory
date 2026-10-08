@@ -82,7 +82,6 @@ public final class DefaultCombatSessionManager
 
         if (opponentId != null) {
             session.setOpponentId(opponentId);
-            session.setLastAttackerId(opponentId);
         }
 
         return session;
@@ -119,10 +118,35 @@ public final class DefaultCombatSessionManager
 
         if (opponentId != null) {
             session.setOpponentId(opponentId);
-            session.setLastAttackerId(opponentId);
         }
 
         return session;
+    }
+
+    @Override
+    public void recordDamage(
+            UUID attackerId,
+            UUID victimId,
+            long timestamp
+    ) {
+        if (attackerId == null || victimId == null || attackerId.equals(victimId)) {
+            return;
+        }
+
+        DefaultCombatSession attacker = sessions.get(attackerId);
+        DefaultCombatSession victim = sessions.get(victimId);
+
+        if (attacker != null && attacker.isActive()) {
+            attacker.setOpponentId(victimId);
+            attacker.setLastVictimId(victimId);
+            attacker.recordActivity(timestamp, timestamp + durationMillis);
+        }
+
+        if (victim != null && victim.isActive()) {
+            victim.setOpponentId(attackerId);
+            victim.setLastAttackerId(attackerId);
+            victim.recordActivity(timestamp, timestamp + durationMillis);
+        }
     }
 
     @Override
@@ -189,7 +213,7 @@ public final class DefaultCombatSessionManager
         sessions.forEach(
                 (playerId, session) -> {
 
-                    if (session.isActive()
+                    if (session.getState() == CombatState.ACTIVE
                             && currentTimeMillis
                             >= session.getExpiresAt()) {
 
