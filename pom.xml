@@ -6,7 +6,7 @@
 
     <groupId>com.votri</groupId>
     <artifactId>CombatKeepInventory</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.5</version>
     <packaging>pom</packaging>
 
     <name>CombatKeepInventory</name>
