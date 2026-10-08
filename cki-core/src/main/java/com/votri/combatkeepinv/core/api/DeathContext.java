@@ -8,6 +8,8 @@ public enum DeathContext {
 
     MOB,
 
+    EXPLOSION,
+
     ENVIRONMENT,
 
     VOID,
