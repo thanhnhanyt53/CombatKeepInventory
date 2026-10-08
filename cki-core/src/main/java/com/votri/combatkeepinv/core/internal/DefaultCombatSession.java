@@ -76,7 +76,8 @@ public final class DefaultCombatSession
     @Override
     public boolean isExpired() {
         return state == CombatState.EXPIRED
-                || System.currentTimeMillis() >= expiresAt;
+                || (state == CombatState.ACTIVE
+                && System.currentTimeMillis() >= expiresAt);
     }
 
     @Override
@@ -119,6 +120,17 @@ public final class DefaultCombatSession
 
     public void setLastVictimId(UUID victimId) {
         this.lastVictimId = victimId;
+    }
+
+    /** Records the latest interaction without resetting the session start time. */
+    public void recordActivity(long timestamp, long expiresAt) {
+        if (timestamp < startedAt) {
+            return;
+        }
+        this.lastActivityAt = timestamp;
+        this.expiresAt = Math.max(timestamp, expiresAt);
+        this.state = CombatState.ACTIVE;
+        this.endReason = null;
     }
 
     public void end(
