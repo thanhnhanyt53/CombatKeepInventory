@@ -15,6 +15,7 @@ import com.votri.combatkeepinv.core.inventory.InventoryAction;
 import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
 import com.votri.combatkeepinv.core.platform.PlatformInfo;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +26,8 @@ public final class DefaultDeathService
     private final DamageAttributionService damageAttributionService;
     private final PlatformInfo platform;
     private final InventoryPolicy defaultPolicy;
+    private final InventoryPolicy combatDeathPolicy;
+    private final Map<DeathReason, InventoryPolicy> deathPolicies;
 
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
@@ -32,11 +35,35 @@ public final class DefaultDeathService
             PlatformInfo platform,
             InventoryPolicy defaultPolicy
     ) {
+        this(
+                combatSessionManager,
+                damageAttributionService,
+                platform,
+                defaultPolicy,
+                new DefaultInventoryPolicy(
+                        InventoryAction.DROP,
+                        false, false, false, false,
+                        defaultPolicy.keepExperience(),
+                        defaultPolicy.keepLevels()
+                ),
+                defaultDeathPolicies(defaultPolicy)
+        );
+    }
+
+    public DefaultDeathService(
+            CombatSessionManager combatSessionManager,
+            DamageAttributionService damageAttributionService,
+            PlatformInfo platform,
+            InventoryPolicy defaultPolicy,
+            InventoryPolicy combatDeathPolicy,
+            Map<DeathReason, InventoryPolicy> deathPolicies
+    ) {
         this.combatSessionManager = combatSessionManager;
-        this.damageAttributionService =
-                damageAttributionService;
+        this.damageAttributionService = damageAttributionService;
         this.platform = platform;
         this.defaultPolicy = defaultPolicy;
+        this.combatDeathPolicy = combatDeathPolicy;
+        this.deathPolicies = Map.copyOf(deathPolicies);
     }
 
     @Override
@@ -75,42 +102,32 @@ public final class DefaultDeathService
     public DeathDecision evaluate(
             DeathContext context
     ) {
-        /*
-         * CKI 1.2.0 invariant:
-         *
-         * 1. Player-caused death -> DROP.
-         * 2. Any death while an active CombatTag exists -> DROP.
-         * 3. Non-player death outside combat -> KEEP.
-         */
-        boolean keepInventory =
-                !context.wasPlayerCaused()
-                        && !context.wasInCombat();
+        InventoryPolicy policy;
+        String ruleId;
 
-        InventoryAction action =
-                keepInventory
-                        ? InventoryAction.KEEP
-                        : InventoryAction.DROP;
+        if (context.wasInCombat()) {
+            policy = combatDeathPolicy;
+            ruleId = "combat-death";
+        } else {
+            policy = deathPolicies.get(context.getDeathReason());
+            if (policy == null && context.wasPlayerCaused()) {
+                policy = deathPolicies.get(DeathReason.PLAYER);
+            }
+            if (policy == null) {
+                policy = defaultPolicy;
+                ruleId = "default";
+            } else {
+                ruleId = "death." + context.getDeathReason().name().toLowerCase();
+            }
+        }
 
-        InventoryPolicy policy =
-                keepInventory
-                        ? defaultPolicy
-                        : new DefaultInventoryPolicy(
-                                InventoryAction.DROP,
-                                false,
-                                false,
-                                false,
-                                false,
-                                false,
-                                false
-                        );
+        boolean keepInventory = policy.getAction() == InventoryAction.KEEP;
 
         return new DefaultDeathDecision(
                 keepInventory,
                 policy,
                 context.getDeathReason(),
-                context.wasPlayerCaused()
-                        ? "pvp-combat"
-                        : "default"
+                ruleId
         );
     }
 
@@ -121,15 +138,45 @@ public final class DefaultDeathService
         DeathDecision decision =
                 evaluate(context);
 
-        if (decision.shouldKeepInventory()) {
-            return decision.getInventoryPolicy()
-                    .getAction()
-                    == InventoryAction.KEEP
-                    ? DeathOutcome.INVENTORY_KEPT
-                    : DeathOutcome.INVENTORY_PARTIALLY_KEPT;
-        }
+        return switch (decision.getInventoryPolicy().getAction()) {
+            case KEEP -> DeathOutcome.INVENTORY_KEPT;
+            case PARTIAL -> DeathOutcome.INVENTORY_PARTIALLY_KEPT;
+            case DROP -> DeathOutcome.INVENTORY_DROPPED;
+            case VANILLA -> DeathOutcome.NO_ACTION;
+        };
+    }
 
-        return DeathOutcome.INVENTORY_DROPPED;
+    private static Map<DeathReason, InventoryPolicy> defaultDeathPolicies(
+            InventoryPolicy defaultPolicy
+    ) {
+        InventoryPolicy playerKill = new DefaultInventoryPolicy(
+                InventoryAction.DROP,
+                false, false, false, false,
+                defaultPolicy.keepExperience(),
+                defaultPolicy.keepLevels()
+        );
+
+        InventoryPolicy vanilla = new DefaultInventoryPolicy(
+                InventoryAction.VANILLA,
+                defaultPolicy.keepMainInventory(),
+                defaultPolicy.keepArmor(),
+                defaultPolicy.keepOffhand(),
+                defaultPolicy.keepHotbar(),
+                defaultPolicy.keepExperience(),
+                defaultPolicy.keepLevels()
+        );
+
+        return Map.of(
+                DeathReason.PLAYER, playerKill,
+                DeathReason.PLAYER_PROJECTILE, playerKill,
+                DeathReason.PLAYER_EXPLOSION, playerKill,
+                DeathReason.ENTITY, defaultPolicy,
+                DeathReason.ENVIRONMENT, defaultPolicy,
+                DeathReason.VOID, defaultPolicy,
+                DeathReason.FIRE, defaultPolicy,
+                DeathReason.LAVA, defaultPolicy,
+                DeathReason.UNKNOWN, vanilla
+        );
     }
 
     private DeathReason resolveDeathReason(
