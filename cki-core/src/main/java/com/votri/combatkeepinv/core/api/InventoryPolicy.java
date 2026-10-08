@@ -6,5 +6,7 @@ public enum InventoryPolicy {
 
     DROP,
 
+    PARTIAL,
+
     DEFAULT
 }
