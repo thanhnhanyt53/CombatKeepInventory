@@ -6,18 +6,26 @@ import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.damage.DamageSource;
 import com.votri.combatkeepinv.core.death.DeathDecision;
+import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
 
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.Location;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Converts Bukkit combat/death events into CKI state changes.
@@ -32,6 +40,9 @@ public final class CombatListener implements Listener {
 
     private final CombatKeepInventory plugin;
     private final WorldGuardHook worldGuard;
+
+    /** Recent player-attributed TNT explosions used to resolve BLOCK/ENTITY_EXPLOSION deaths. */
+    private final List<ExplosionAttribution> recentExplosions = new ArrayList<>();
 
     public CombatListener(
             CombatKeepInventory plugin,
@@ -132,6 +143,17 @@ public final class CombatListener implements Listener {
         DamageSource source;
 
         if (event.getDamager()
+                instanceof TNTPrimed tnt
+                && tnt.getSource() instanceof Player) {
+
+            source =
+                    BukkitDamageSource.playerExplosion(
+                            attacker.getUniqueId(),
+                            victim.getUniqueId(),
+                            com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
+                    );
+
+        } else if (event.getDamager()
                 instanceof Projectile projectile) {
 
             source =
@@ -170,6 +192,139 @@ public final class CombatListener implements Listener {
         );
     }
 
+    /**
+     * Handles explosion damage that Bukkit exposes as a plain
+     * {@link EntityDamageEvent} instead of an
+     * {@link EntityDamageByEntityEvent}.
+     *
+     * <p>The TNT owner is resolved from the same short-lived
+     * {@code recentExplosions} registry used by death attribution.
+     * This keeps TNT combat tagging independent of the exact Bukkit
+     * damage-event subtype emitted by the server implementation.</p>
+     *
+     * <p>{@link EntityDamageByEntityEvent} is a subclass of
+     * {@link EntityDamageEvent}, so it is explicitly ignored here;
+     * those events are handled by {@link #onEntityDamageByEntity}.</p>
+     */
+    @EventHandler
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (event.isCancelled()
+                || event instanceof EntityDamageByEntityEvent) {
+            return;
+        }
+
+        if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
+
+        if (!isExplosionDamage(event)) {
+            return;
+        }
+
+        UUID attackerId = findRecentExplosionOwner(victim);
+        if (attackerId == null) {
+            debugDamageIgnored(
+                    "explosion has no recent player attribution."
+            );
+            return;
+        }
+
+        if (attackerId.equals(victim.getUniqueId())) {
+            debugDamageIgnored(
+                    "explosion was caused by the victim."
+            );
+            return;
+        }
+
+        Player attacker =
+                plugin.getServer().getPlayer(attackerId);
+
+        if (attacker == null) {
+            debugDamageIgnored(
+                    "explosion owner is not online."
+            );
+            return;
+        }
+
+        if (attacker.hasPermission(BYPASS_PERMISSION)
+                || victim.hasPermission(BYPASS_PERMISSION)) {
+            debugDamageIgnored(
+                    "bypass permission."
+            );
+            return;
+        }
+
+        if (plugin.isWorldDisabled(attacker.getWorld())
+                || plugin.isWorldDisabled(victim.getWorld())) {
+            debugDamageIgnored(
+                    "CKI is disabled in this world."
+            );
+            return;
+        }
+
+        if (worldGuard != null
+                && !worldGuard.canPvP(attacker, victim)) {
+            debugDamageIgnored(
+                    "WorldGuard does not allow PvP."
+            );
+            return;
+        }
+
+        DamageSource source =
+                BukkitDamageSource.playerExplosion(
+                        attackerId,
+                        victim.getUniqueId(),
+                        mapExplosionCause(event)
+                );
+
+        plugin.getCombatService()
+                .getDamageAttributionService()
+                .recordDamage(source);
+
+        CombatResult result =
+                plugin.getCombatService().startCombat(
+                        attackerId,
+                        victim.getUniqueId()
+                );
+
+        debugCombatResult(
+                attacker,
+                victim,
+                result
+        );
+    }
+
+    @EventHandler
+    public void onEntityExplode(EntityExplodeEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
+
+        if (!(event.getEntity() instanceof TNTPrimed tnt)) {
+            return;
+        }
+
+        if (!(tnt.getSource() instanceof Player player)) {
+            return;
+        }
+
+        Location location = tnt.getLocation();
+        if (location.getWorld() == null) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        cleanupExplosionAttributions(now);
+        recentExplosions.add(new ExplosionAttribution(
+                location.getWorld().getUID(),
+                location.getX(),
+                location.getY(),
+                location.getZ(),
+                player.getUniqueId(),
+                now
+        ));
+    }
+
     /*
      * ==========================================================
      * PLAYER DEATH
@@ -198,6 +353,7 @@ public final class CombatListener implements Listener {
             handleKeepInventory(event);
 
             plugin.getCombatManager().remove(uuid);
+            plugin.getCombatService().getDamageAttributionService().clearDamageHistory(uuid);
 
             debugDeath(
                     victim,
@@ -245,13 +401,9 @@ public final class CombatListener implements Listener {
                             .getDeathService()
                             .evaluate(context);
 
-            /*
-             * Active CombatTag MUST drop inventory.
-             */
             applyCoreDecision(
                     event,
-                    decision,
-                    true
+                    decision
             );
 
             debugDeath(
@@ -261,6 +413,7 @@ public final class CombatListener implements Listener {
             );
 
             plugin.getCombatManager().remove(uuid);
+            plugin.getCombatService().getDamageAttributionService().clearDamageHistory(uuid);
 
             return;
         }
@@ -291,8 +444,7 @@ public final class CombatListener implements Listener {
 
         applyCoreDecision(
                 event,
-                decision,
-                false
+                decision
         );
 
         debugDeath(
@@ -302,6 +454,7 @@ public final class CombatListener implements Listener {
         );
 
         plugin.getCombatManager().remove(uuid);
+        plugin.getCombatService().getDamageAttributionService().clearDamageHistory(uuid);
     }
 
     /*
@@ -313,33 +466,49 @@ public final class CombatListener implements Listener {
     private DamageSource createDeathDamageSource(
             Player victim
     ) {
-        var damage =
-                victim.getLastDamageCause();
+        var damage = victim.getLastDamageCause();
 
         if (damage instanceof EntityDamageByEntityEvent byEntity) {
-
-            Entity damager =
-                    byEntity.getDamager();
+            Entity damager = byEntity.getDamager();
 
             if (damager instanceof Player attacker) {
-
                 return BukkitDamageSource.playerAttack(
-                                attacker.getUniqueId(),
-                                victim.getUniqueId()
-                        );
+                        attacker.getUniqueId(),
+                        victim.getUniqueId()
+                );
             }
 
-            if (damager instanceof Projectile projectile) {
+            if (damager instanceof Projectile projectile
+                    && projectile.getShooter() instanceof Player attacker) {
+                return BukkitDamageSource.playerProjectile(
+                        attacker.getUniqueId(),
+                        projectile.getUniqueId(),
+                        victim.getUniqueId()
+                );
+            }
 
-                if (projectile.getShooter()
-                        instanceof Player attacker) {
+            if (damager instanceof TNTPrimed tnt
+                    && tnt.getSource() instanceof Player attacker) {
+                return BukkitDamageSource.playerExplosion(
+                        attacker.getUniqueId(),
+                        victim.getUniqueId(),
+                        com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
+                );
+            }
+        }
 
-                    return BukkitDamageSource.playerProjectile(
-                                    attacker.getUniqueId(),
-                                    projectile.getUniqueId(),
-                                    victim.getUniqueId()
-                            );
-                }
+        com.votri.combatkeepinv.core.damage.DamageCauseType cause =
+                mapExplosionCause(damage);
+
+        if (cause == com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
+                || cause == com.votri.combatkeepinv.core.damage.DamageCauseType.EXPLOSION) {
+            UUID attacker = findRecentExplosionOwner(victim);
+            if (attacker != null) {
+                return BukkitDamageSource.playerExplosion(
+                        attacker,
+                        victim.getUniqueId(),
+                        cause
+                );
             }
         }
 
@@ -351,43 +520,100 @@ public final class CombatListener implements Listener {
 
     private void applyCoreDecision(
             PlayerDeathEvent event,
-            DeathDecision decision,
-            boolean forceDrop
+            DeathDecision decision
     ) {
-        if (forceDrop) {
-            handleDropInventory(
-                    event,
-                    plugin.shouldKeepCombatDeathExperience()
-            );
-            return;
-        }
-
         if (decision == null) {
-            handleKeepInventory(event);
             return;
         }
 
-        if (decision.shouldKeepInventory()) {
-
-            handleKeepInventory(
-                    event,
-                    decision.shouldKeepExperience()
-            );
-
-        } else {
-
-            handleDropInventory(
-                    event,
-                    decision.shouldKeepExperience()
-            );
+        InventoryPolicy policy = decision.getInventoryPolicy();
+        switch (policy.getAction()) {
+            case KEEP -> handleKeepInventory(event, policy.keepExperience());
+            case DROP -> handleDropInventory(event, policy.keepExperience());
+            case PARTIAL -> handlePartialInventory(event, policy);
+            case VANILLA -> {
+                // Preserve the server's vanilla keepInventory behavior.
+            }
         }
     }
 
-    /*
-     * ==========================================================
-     * INVENTORY DROP & KEEP
-     * ==========================================================
-     */
+    private boolean isExplosionDamage(EntityDamageEvent event) {
+        return event != null
+                && (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
+                || event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION);
+    }
+
+    private com.votri.combatkeepinv.core.damage.DamageCauseType mapExplosionCause(
+            EntityDamageEvent damage
+    ) {
+        if (damage == null) {
+            return com.votri.combatkeepinv.core.damage.DamageCauseType.UNKNOWN;
+        }
+
+        return switch (damage.getCause()) {
+            case BLOCK_EXPLOSION, ENTITY_EXPLOSION ->
+                    com.votri.combatkeepinv.core.damage.DamageCauseType.EXPLOSION;
+            default -> com.votri.combatkeepinv.core.damage.DamageCauseType.UNKNOWN;
+        };
+    }
+
+    private UUID findRecentExplosionOwner(Player victim) {
+        long now = System.currentTimeMillis();
+        cleanupExplosionAttributions(now);
+
+        Location location = victim.getLocation();
+        UUID worldId = location.getWorld() == null
+                ? null
+                : location.getWorld().getUID();
+
+        if (worldId == null) {
+            return null;
+        }
+
+        UUID best = null;
+        double bestDistance = Double.MAX_VALUE;
+
+        for (ExplosionAttribution attribution : recentExplosions) {
+            if (!worldId.equals(attribution.worldId)) {
+                continue;
+            }
+
+            double distance =
+                    location.distanceSquared(new Location(
+                            location.getWorld(),
+                            attribution.x,
+                            attribution.y,
+                            attribution.z
+                    ));
+
+            if (distance <= 64.0 && distance < bestDistance) {
+                bestDistance = distance;
+                best = attribution.playerId;
+            }
+        }
+
+        return best;
+    }
+
+    private void cleanupExplosionAttributions(long now) {
+        Iterator<ExplosionAttribution> iterator = recentExplosions.iterator();
+        while (iterator.hasNext()) {
+            ExplosionAttribution attribution = iterator.next();
+            if (now - attribution.timestamp > 2000L) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private record ExplosionAttribution(
+            UUID worldId,
+            double x,
+            double y,
+            double z,
+            UUID playerId,
+            long timestamp
+    ) {
+    }
 
     private void handleDropInventory(
             PlayerDeathEvent event,
@@ -436,6 +662,53 @@ public final class CombatListener implements Listener {
         }
     }
 
+    private void handlePartialInventory(
+            PlayerDeathEvent event,
+            InventoryPolicy policy
+    ) {
+        Player player = event.getEntity();
+        event.getDrops().clear();
+        event.setKeepInventory(true);
+
+        ItemStack[] storage = player.getInventory().getStorageContents();
+        for (int index = 0; index < storage.length; index++) {
+            ItemStack item = storage[index];
+            if (item == null || item.getType().isAir()) {
+                continue;
+            }
+
+            boolean isHotbar = index < 9;
+            boolean keep = isHotbar
+                    ? policy.keepHotbar()
+                    : policy.keepMainInventory();
+
+            if (!keep) {
+                event.getDrops().add(item.clone());
+                storage[index] = null;
+            }
+        }
+        player.getInventory().setStorageContents(storage);
+
+        if (!policy.keepArmor()) {
+            ItemStack[] armor = player.getInventory().getArmorContents();
+            addDrops(event, armor);
+            player.getInventory().setArmorContents(new ItemStack[armor.length]);
+        }
+
+        if (!policy.keepOffhand()) {
+            ItemStack[] extra = player.getInventory().getExtraContents();
+            addDrops(event, extra);
+            player.getInventory().setExtraContents(new ItemStack[extra.length]);
+        }
+
+        if (policy.keepExperience()) {
+            event.setKeepLevel(true);
+            event.setDroppedExp(0);
+        } else {
+            event.setKeepLevel(false);
+        }
+    }
+
     private void addDrops(
             PlayerDeathEvent event,
             ItemStack[] items
@@ -465,6 +738,11 @@ public final class CombatListener implements Listener {
             if (source instanceof Player player) {
                 return player;
             }
+        }
+
+        if (damager instanceof TNTPrimed tnt
+                && tnt.getSource() instanceof Player player) {
+            return player;
         }
 
         return null;
