@@ -5,6 +5,11 @@ import com.votri.combatkeepinv.core.damage.DamageCauseType;
 import com.votri.combatkeepinv.core.damage.DamageSource;
 
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -61,16 +66,39 @@ public final class BukkitDamageSource
             EntityDamageEvent event
     ) {
         return new BukkitDamageSource(
-                mapCause(
-                        event == null
-                                ? null
-                                : event.getCause()
-                ),
+                mapCause(event == null ? null : event.getCause()),
                 null,
                 null,
                 victimId,
                 false,
                 false,
+                System.currentTimeMillis()
+        );
+    }
+
+    /**
+     * Creates a player-attributed explosion source.
+     *
+     * <p>This is used for TNT/explosion damage where Bukkit exposes the
+     * final damage as an explosion event rather than a direct player hit.</p>
+     */
+    public static BukkitDamageSource playerExplosion(
+            UUID attackerId,
+            UUID victimId,
+            DamageCauseType causeType
+    ) {
+        DamageCauseType resolved =
+                causeType == DamageCauseType.TNT
+                        ? DamageCauseType.TNT
+                        : DamageCauseType.EXPLOSION;
+
+        return new BukkitDamageSource(
+                resolved,
+                null,
+                attackerId,
+                victimId,
+                true,
+                true,
                 System.currentTimeMillis()
         );
     }
@@ -113,6 +141,17 @@ public final class BukkitDamageSource
             case MOB ->
                     new BukkitDamageSource(
                             DamageCauseType.ENTITY,
+                            null,
+                            null,
+                            victimId,
+                            false,
+                            false,
+                            System.currentTimeMillis()
+                    );
+
+            case EXPLOSION ->
+                    new BukkitDamageSource(
+                            DamageCauseType.EXPLOSION,
                             null,
                             null,
                             victimId,
@@ -202,7 +241,7 @@ public final class BukkitDamageSource
 
         return switch (cause) {
             case ENTITY_ATTACK ->
-                    DamageCauseType.PLAYER;
+                    DamageCauseType.ENTITY;
 
             case PROJECTILE ->
                     DamageCauseType.PROJECTILE;
