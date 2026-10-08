@@ -6,6 +6,7 @@ import com.votri.combatkeepinv.core.damage.DamageSource;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,6 +21,8 @@ public final class DefaultDamageAttributionService
             UUID victimId,
             DamageSource rawSource
     ) {
+        Objects.requireNonNull(victimId, "victimId");
+        Objects.requireNonNull(rawSource, "rawSource");
         recordDamage(rawSource);
 
         UUID killer =
@@ -37,7 +40,7 @@ public final class DefaultDamageAttributionService
                         .DamageCauseType.PLAYER;
 
         boolean indirectPvP =
-                playerCaused && !directPvP;
+                playerCaused && rawSource.isIndirect();
 
         return new DefaultDamageAttributionResult(
                 victimId,
@@ -62,6 +65,9 @@ public final class DefaultDamageAttributionService
     public void recordDamage(
             DamageSource source
     ) {
+        if (source == null) {
+            return;
+        }
         source.getVictimId()
                 .ifPresent(
                         victim ->
