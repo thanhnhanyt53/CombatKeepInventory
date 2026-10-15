@@ -5,6 +5,7 @@ import com.votri.combatkeepinv.bukkit.bridge.CombatStateBridge;
 import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
 import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.command.CombatCommand;
+import com.votri.combatkeepinv.bukkit.debug.DebugManager;
 import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.bukkit.listener.CombatListener;
@@ -29,6 +30,8 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -47,7 +50,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public static final String PLUGIN_VERSION =
             "1.2.5";
 
-    private static final int CONFIG_VERSION = 3;
+    private static final int CONFIG_VERSION = 4;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -56,6 +59,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private PvPManagerDetector pvpManagerDetector;
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
+    private DebugManager debugManager;
 
     private PlatformInfo platformInfo;
 
@@ -134,6 +138,14 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         /*
          * ==========================================================
+         * DEBUG MANAGER
+         * ==========================================================
+         */
+
+        initializeDebugManager();
+
+        /*
+         * ==========================================================
          * CORE API FACADES
          * ==========================================================
          */
@@ -209,12 +221,17 @@ public final class CombatKeepInventory extends JavaPlugin {
             combatStateBridge.shutdown();
         }
 
+        if (debugManager != null) {
+            debugManager.clear();
+        }
+
         combatListener = null;
         pvpManagerDetector = null;
         worldGuardHook = null;
         combatService = null;
         combatManager = null;
         combatStateBridge = null;
+        debugManager = null;
 
         combatAPI = null;
         damageAPI = null;
@@ -382,6 +399,37 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     /*
      * ==========================================================
+     * DEBUG MANAGER
+     * ==========================================================
+     */
+
+    private void initializeDebugManager() {
+
+        /*
+         * Intentionally NOT recreated on reload: this would
+         * silently drop every admin who had live debug watch
+         * mode turned on via /cki debug.
+         */
+        if (debugManager == null) {
+
+            debugManager =
+                    new DebugManager(this);
+        }
+    }
+
+    public DebugManager getDebugManager() {
+
+        if (debugManager == null) {
+
+            debugManager =
+                    new DebugManager(this);
+        }
+
+        return debugManager;
+    }
+
+    /*
+     * ==========================================================
      * CORE API FACADES INITIALIZATION
      * ==========================================================
      */
@@ -536,6 +584,50 @@ public final class CombatKeepInventory extends JavaPlugin {
                     }
                 };
 
+        /*
+         * NOTE: onEntityExplode() carries @EventHandler but, like
+         * the two listeners above, is wired manually rather than
+         * via registerEvents(combatListener, this) -- doing both
+         * would double-register onEntityDamageByEntity/onPlayerDeath
+         * (they also carry @EventHandler) and process every hit and
+         * death twice. Without this explicit registerEvent call,
+         * onEntityExplode() is never invoked by Bukkit at all, which
+         * silently disables all player-TNT death attribution.
+         */
+        EventExecutor explodeExecutor =
+                (registeredListener, event) -> {
+
+                    if (event instanceof EntityExplodeEvent explode) {
+
+                        combatListener
+                                .onEntityExplode(
+                                        explode
+                                );
+                    }
+                };
+
+        /*
+         * Bukkit keeps EntityDamageEvent and
+         * EntityDamageByEntityEvent on separate handler lists
+         * (the subclass overrides getHandlers()), so this does
+         * NOT also receive EntityDamageByEntityEvent instances
+         * and will not double-process melee/projectile hits.
+         * It exists specifically to catch explosion damage that
+         * Bukkit delivers without a "by entity" damager, so that
+         * non-lethal TNT hits still start/refresh CombatTag.
+         */
+        EventExecutor plainDamageExecutor =
+                (registeredListener, event) -> {
+
+                    if (event instanceof EntityDamageEvent damage) {
+
+                        combatListener
+                                .onEntityDamage(
+                                        damage
+                                );
+                    }
+                };
+
         getServer()
                 .getPluginManager()
                 .registerEvent(
@@ -549,6 +641,16 @@ public final class CombatKeepInventory extends JavaPlugin {
         getServer()
                 .getPluginManager()
                 .registerEvent(
+                        EntityDamageEvent.class,
+                        combatListener,
+                        priority,
+                        plainDamageExecutor,
+                        this
+                );
+
+        getServer()
+                .getPluginManager()
+                .registerEvent(
                         PlayerDeathEvent.class,
                         combatListener,
                         priority,
@@ -556,10 +658,21 @@ public final class CombatKeepInventory extends JavaPlugin {
                         this
                 );
 
+        getServer()
+                .getPluginManager()
+                .registerEvent(
+                        EntityExplodeEvent.class,
+                        combatListener,
+                        priority,
+                        explodeExecutor,
+                        this
+                );
+
         getLogger().info(
                 "Combat listeners registered at "
                         + priority
-                        + " priority."
+                        + " priority (including TNT explosion "
+                        + "attribution)."
         );
     }
 
@@ -672,10 +785,33 @@ public final class CombatKeepInventory extends JavaPlugin {
      */
     public boolean shouldKeepDeathExperience() {
 
-        return getConfig().getBoolean(
-                "death.keep-experience",
-                true
-        );
+        return getConfig().contains("inventory.policies.pve-death.keep-experience")
+                ? getConfig().getBoolean(
+                        "inventory.policies.pve-death.keep-experience",
+                        true
+                )
+                : getConfig().getBoolean(
+                        "death.keep-experience",
+                        true
+                );
+    }
+
+    /**
+     * Level-keep policy for deaths without active CombatTag
+     * (used by the bypass-permission path, which has no
+     * resolved InventoryPolicy of its own).
+     */
+    public boolean shouldKeepDeathLevels() {
+
+        return getConfig().contains("inventory.policies.pve-death.keep-levels")
+                ? getConfig().getBoolean(
+                        "inventory.policies.pve-death.keep-levels",
+                        true
+                )
+                : getConfig().getBoolean(
+                        "inventory.keep-levels",
+                        true
+                );
     }
 
     /**
@@ -685,7 +821,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public boolean shouldKeepCombatDeathExperience() {
 
         return getConfig().getBoolean(
-                "inventory.keep-experience",
+                "inventory.policies.combat-death.keep-experience",
                 true
         );
     }
