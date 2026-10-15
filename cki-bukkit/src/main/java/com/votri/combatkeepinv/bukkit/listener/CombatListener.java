@@ -8,6 +8,7 @@ import com.votri.combatkeepinv.core.damage.DamageSource;
 import com.votri.combatkeepinv.core.death.DeathDecision;
 import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -192,24 +193,29 @@ public final class CombatListener implements Listener {
         );
     }
 
-    /**
-     * Handles explosion damage that Bukkit exposes as a plain
-     * {@link EntityDamageEvent} instead of an
-     * {@link EntityDamageByEntityEvent}.
+    /*
+     * ==========================================================
+     * NON-"BY ENTITY" EXPLOSION DAMAGE (COMBAT TAGGING)
+     * ==========================================================
      *
-     * <p>The TNT owner is resolved from the same short-lived
-     * {@code recentExplosions} registry used by death attribution.
-     * This keeps TNT combat tagging independent of the exact Bukkit
-     * damage-event subtype emitted by the server implementation.</p>
+     * Bukkit does not always deliver explosion damage as an
+     * EntityDamageByEntityEvent with the TNTPrimed as damager;
+     * it is frequently a plain EntityDamageEvent with cause
+     * BLOCK_EXPLOSION / ENTITY_EXPLOSION and no damager at all.
      *
-     * <p>{@link EntityDamageByEntityEvent} is a subclass of
-     * {@link EntityDamageEvent}, so it is explicitly ignored here;
-     * those events are handled by {@link #onEntityDamageByEntity}.</p>
+     * onEntityDamageByEntity() above already handles the case
+     * where Bukkit *does* provide the TNTPrimed as damager.
+     * This handler covers the remaining case using the same
+     * recentExplosions attribution already used at death time
+     * by createDeathDamageSource()/findRecentExplosionOwner(),
+     * so that non-lethal TNT hits also start/refresh CombatTag
+     * instead of only being attributed if they happen to kill.
      */
     @EventHandler
-    public void onEntityDamage(EntityDamageEvent event) {
-        if (event.isCancelled()
-                || event instanceof EntityDamageByEntityEvent) {
+    public void onEntityDamage(
+            EntityDamageEvent event
+    ) {
+        if (event.isCancelled()) {
             return;
         }
 
@@ -217,45 +223,57 @@ public final class CombatListener implements Listener {
             return;
         }
 
-        if (!isExplosionDamage(event)) {
+        EntityDamageEvent.DamageCause cause =
+                event.getCause();
+
+        if (cause != EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                && cause != EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
             return;
         }
 
-        UUID attackerId = findRecentExplosionOwner(victim);
+        UUID attackerId =
+                findRecentExplosionOwner(victim);
+
         if (attackerId == null) {
             debugDamageIgnored(
-                    "explosion has no recent player attribution."
+                    "explosion damage with no recent "
+                            + "player-lit TNT nearby."
             );
             return;
         }
 
-        if (attackerId.equals(victim.getUniqueId())) {
+        if (attackerId.equals(
+                victim.getUniqueId()
+        )) {
             debugDamageIgnored(
-                    "explosion was caused by the victim."
+                    "attacker and victim are the same player."
             );
             return;
         }
 
         Player attacker =
-                plugin.getServer().getPlayer(attackerId);
+                Bukkit.getPlayer(attackerId);
 
         if (attacker == null) {
-            debugDamageIgnored(
-                    "explosion owner is not online."
-            );
             return;
         }
 
-        if (attacker.hasPermission(BYPASS_PERMISSION)
-                || victim.hasPermission(BYPASS_PERMISSION)) {
+        if (attacker.hasPermission(
+                BYPASS_PERMISSION
+        ) || victim.hasPermission(
+                BYPASS_PERMISSION
+        )) {
             debugDamageIgnored(
                     "bypass permission."
             );
             return;
         }
 
-        if (plugin.isWorldDisabled(attacker.getWorld())
-                || plugin.isWorldDisabled(victim.getWorld())) {
+        if (plugin.isWorldDisabled(
+                attacker.getWorld()
+        ) || plugin.isWorldDisabled(
+                victim.getWorld()
+        )) {
             debugDamageIgnored(
                     "CKI is disabled in this world."
             );
@@ -263,7 +281,10 @@ public final class CombatListener implements Listener {
         }
 
         if (worldGuard != null
-                && !worldGuard.canPvP(attacker, victim)) {
+                && !worldGuard.canPvP(
+                attacker,
+                victim
+        )) {
             debugDamageIgnored(
                     "WorldGuard does not allow PvP."
             );
@@ -274,7 +295,9 @@ public final class CombatListener implements Listener {
                 BukkitDamageSource.playerExplosion(
                         attackerId,
                         victim.getUniqueId(),
-                        mapExplosionCause(event)
+                        cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                                ? com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
+                                : com.votri.combatkeepinv.core.damage.DamageCauseType.EXPLOSION
                 );
 
         plugin.getCombatService()
@@ -528,8 +551,16 @@ public final class CombatListener implements Listener {
 
         InventoryPolicy policy = decision.getInventoryPolicy();
         switch (policy.getAction()) {
-            case KEEP -> handleKeepInventory(event, policy.keepExperience());
-            case DROP -> handleDropInventory(event, policy.keepExperience());
+            case KEEP -> handleKeepInventory(
+                    event,
+                    policy.keepExperience(),
+                    policy.keepLevels()
+            );
+            case DROP -> handleDropInventory(
+                    event,
+                    policy.keepExperience(),
+                    policy.keepLevels()
+            );
             case PARTIAL -> handlePartialInventory(event, policy);
             case VANILLA -> {
                 // Preserve the server's vanilla keepInventory behavior.
@@ -537,14 +568,8 @@ public final class CombatListener implements Listener {
         }
     }
 
-    private boolean isExplosionDamage(EntityDamageEvent event) {
-        return event != null
-                && (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
-                || event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION);
-    }
-
     private com.votri.combatkeepinv.core.damage.DamageCauseType mapExplosionCause(
-            EntityDamageEvent damage
+            org.bukkit.event.entity.EntityDamageEvent damage
     ) {
         if (damage == null) {
             return com.votri.combatkeepinv.core.damage.DamageCauseType.UNKNOWN;
@@ -617,7 +642,8 @@ public final class CombatListener implements Listener {
 
     private void handleDropInventory(
             PlayerDeathEvent event,
-            boolean keepExperience
+            boolean keepExperience,
+            boolean keepLevels
     ) {
         Player player = event.getEntity();
 
@@ -629,10 +655,18 @@ public final class CombatListener implements Listener {
 
         event.setKeepInventory(false);
 
-        if (keepExperience) {
-            event.setKeepLevel(true);
-        } else {
-            event.setKeepLevel(false);
+        /*
+         * keepExperience controls whether XP orbs drop on the
+         * ground; keepLevels separately controls whether the
+         * player's level/XP progress survives respawn. Only the
+         * setKeepLevel() source changes here (now keepLevels
+         * instead of keepExperience) -- the pre-existing
+         * setDroppedExp() behaviour per branch is left exactly
+         * as it was to avoid guessing at unrelated semantics.
+         */
+        event.setKeepLevel(keepLevels);
+
+        if (!keepExperience) {
             event.setDroppedExp(0);
         }
     }
@@ -642,24 +676,28 @@ public final class CombatListener implements Listener {
     ) {
         handleKeepInventory(
                 event,
-                plugin.shouldKeepDeathExperience()
+                plugin.shouldKeepDeathExperience(),
+                plugin.shouldKeepDeathLevels()
         );
     }
 
     private void handleKeepInventory(
             PlayerDeathEvent event,
-            boolean keepExperience
+            boolean keepExperience,
+            boolean keepLevels
     ) {
         event.setKeepInventory(true);
         event.getDrops().clear();
 
-        if (keepExperience) {
-            event.setKeepLevel(true);
-            event.setDroppedExp(0);
-        } else {
-            event.setKeepLevel(false);
-            event.setDroppedExp(0);
-        }
+        /*
+         * Inventory is fully kept here, so no XP orbs are ever
+         * spawned regardless of keepExperience -- matches the
+         * pre-existing behaviour of this method. keepLevels is
+         * now applied from the policy instead of being tied to
+         * keepExperience.
+         */
+        event.setKeepLevel(keepLevels);
+        event.setDroppedExp(0);
     }
 
     private void handlePartialInventory(
@@ -701,11 +739,10 @@ public final class CombatListener implements Listener {
             player.getInventory().setExtraContents(new ItemStack[extra.length]);
         }
 
+        event.setKeepLevel(policy.keepLevels());
+
         if (policy.keepExperience()) {
-            event.setKeepLevel(true);
             event.setDroppedExp(0);
-        } else {
-            event.setKeepLevel(false);
         }
     }
 
@@ -758,31 +795,43 @@ public final class CombatListener implements Listener {
             EntityDamageByEntityEvent event,
             Player victim
     ) {
-        if (!plugin.isDebugDamage()) {
+        if (!plugin.isDebugDamage()
+                && !plugin.getDebugManager().hasWatchers()) {
             return;
         }
 
-        plugin.getLogger().info(
+        String message =
                 "[CombatDamage] received: "
                         + "damager="
                         + event.getDamager().getType()
                         + " -> victim=PLAYER("
                         + victim.getName()
-                        + ")"
-        );
+                        + ")";
+
+        if (plugin.isDebugDamage()) {
+            plugin.getLogger().info(message);
+        }
+
+        plugin.getDebugManager().broadcast(message);
     }
 
     private void debugDamageIgnored(
             String reason
     ) {
-        if (!plugin.isDebugDamage()) {
+        if (!plugin.isDebugDamage()
+                && !plugin.getDebugManager().hasWatchers()) {
             return;
         }
 
-        plugin.getLogger().info(
+        String message =
                 "[CombatDamage] ignored: "
-                        + reason
-        );
+                        + reason;
+
+        if (plugin.isDebugDamage()) {
+            plugin.getLogger().info(message);
+        }
+
+        plugin.getDebugManager().broadcast(message);
     }
 
     private void debugCombatResult(
@@ -790,7 +839,8 @@ public final class CombatListener implements Listener {
             Player victim,
             CombatResult result
     ) {
-        if (!plugin.isDebugCombat()) {
+        if (!plugin.isDebugCombat()
+                && !plugin.getDebugManager().hasWatchers()) {
             return;
         }
 
@@ -814,7 +864,7 @@ public final class CombatListener implements Listener {
                         victim.getUniqueId()
                 );
 
-        plugin.getLogger().info(
+        String message =
                 "[CombatTag] "
                         + attacker.getName()
                         + " -> "
@@ -834,8 +884,13 @@ public final class CombatListener implements Listener {
                         + formatSeconds(
                                 victimRemaining
                         )
-                        + "s"
-        );
+                        + "s";
+
+        if (plugin.isDebugCombat()) {
+            plugin.getLogger().info(message);
+        }
+
+        plugin.getDebugManager().broadcast(message);
     }
 
     private long formatSeconds(
@@ -855,11 +910,12 @@ public final class CombatListener implements Listener {
             Object context,
             String state
     ) {
-        if (!plugin.isDebugDeath()) {
+        if (!plugin.isDebugDeath()
+                && !plugin.getDebugManager().hasWatchers()) {
             return;
         }
 
-        plugin.getLogger().info(
+        String message =
                 "[CombatDeath] "
                         + player.getName()
                         + " | state="
@@ -869,7 +925,12 @@ public final class CombatListener implements Listener {
                         context == null
                                 ? "NOT_EVALUATED"
                                 : context
-                )
-        );
+                );
+
+        if (plugin.isDebugDeath()) {
+            plugin.getLogger().info(message);
+        }
+
+        plugin.getDebugManager().broadcast(message);
     }
 }
