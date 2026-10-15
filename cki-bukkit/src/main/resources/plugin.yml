@@ -14,8 +14,7 @@ softdepend:
 commands:
   cki:
     description: CombatKeepInventory administration command.
-    usage: /cki <reload|info>
-    permission: combatkeepinventory.admin
+    usage: /cki <reload|info|debug [player]>
 
 permissions:
 
@@ -26,3 +25,7 @@ permissions:
   combatkeepinventory.bypass:
     description: Bypasses CombatKeepInventory combat/death processing.
     default: false
+
+  combatkeepinventory.debug:
+    description: Allows toggling live in-game CombatKeepInventory debug output (/cki debug) and viewing per-player debug snapshots, without needing console/log access.
+    default: op
