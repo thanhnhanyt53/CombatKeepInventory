@@ -46,7 +46,13 @@ bridge:
   enabled: true
 
   # Velocity plugin message channel used by Bukkit -> Velocity.
-  channel: "combatkeepinventory:combat"
+  #
+  # MUST match CombatStateBridge.CHANNEL on the Bukkit side
+  # ("votri:combat"). Bukkit does not read this value -- it
+  # always sends on the hardcoded constant -- so changing this
+  # alone without also changing the Bukkit constant will break
+  # the bridge.
+  channel: "votri:combat"
 
   # Reject messages from servers that are not explicitly
   # allowed below.
