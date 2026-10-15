@@ -397,12 +397,12 @@ public final class BukkitCombatService
             }
         }
 
-        boolean keepMain = getConfig().getBoolean(path + ".keep-main", defaultKeep);
-        boolean keepArmor = getConfig().getBoolean(path + ".keep-armor", defaultKeep);
-        boolean keepOffhand = getConfig().getBoolean(path + ".keep-offhand", defaultKeep);
-        boolean keepHotbar = getConfig().getBoolean(path + ".keep-hotbar", defaultKeep);
-        boolean keepExperience = getConfig().getBoolean(path + ".keep-experience", defaultKeep);
-        boolean keepLevels = getConfig().getBoolean(path + ".keep-levels", keepExperience);
+        boolean keepMain = plugin.getConfig().getBoolean(path + ".keep-main", defaultKeep);
+        boolean keepArmor = plugin.getConfig().getBoolean(path + ".keep-armor", defaultKeep);
+        boolean keepOffhand = plugin.getConfig().getBoolean(path + ".keep-offhand", defaultKeep);
+        boolean keepHotbar = plugin.getConfig().getBoolean(path + ".keep-hotbar", defaultKeep);
+        boolean keepExperience = plugin.getConfig().getBoolean(path + ".keep-experience", defaultKeep);
+        boolean keepLevels = plugin.getConfig().getBoolean(path + ".keep-levels", keepExperience);
 
         return new DefaultInventoryPolicy(
                 action, keepMain, keepArmor, keepOffhand, keepHotbar,
