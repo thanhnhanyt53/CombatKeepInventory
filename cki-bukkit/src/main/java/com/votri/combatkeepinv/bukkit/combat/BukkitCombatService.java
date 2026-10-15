@@ -386,7 +386,7 @@ public final class BukkitCombatService
             com.votri.combatkeepinv.core.inventory.InventoryAction defaultAction,
             boolean defaultKeep
     ) {
-        String actionName = getConfig().getString(path + ".action", defaultAction.name());
+        String actionName = plugin.getConfig().getString(path + ".action", defaultAction.name());
         com.votri.combatkeepinv.core.inventory.InventoryAction action = defaultAction;
         if (actionName != null) {
             try {
