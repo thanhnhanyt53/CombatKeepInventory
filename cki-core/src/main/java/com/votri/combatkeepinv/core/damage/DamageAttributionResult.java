@@ -16,4 +16,12 @@ public interface DamageAttributionResult {
     boolean isDirectPvP();
 
     boolean isIndirectPvP();
+
+    default DamageCauseType getCauseType() {
+        return getDamageSource().getCauseType();
+    }
+
+    default long getTimestamp() {
+        return getDamageSource().getTimestamp();
+    }
 }
