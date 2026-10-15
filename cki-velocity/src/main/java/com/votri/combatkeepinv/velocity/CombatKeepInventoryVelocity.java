@@ -28,6 +28,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 
 @Plugin(
         id = "combatkeepinventory",
@@ -614,6 +615,14 @@ public CombatKeepInventoryVelocity(
                  * already synchronized authoritative CombatTag.
                  */
 
+                /*
+                 * Punishment check MUST read combat state before
+                 * any clearing happens below -- otherwise
+                 * require-active-combat would never see an active
+                 * tag once forceEnd() has already run.
+                 */
+                maybePunishServerSwitch(transition);
+
                 if (config.trackServer()) {
 
                     combatStateManager.updateBackendServer(
@@ -647,6 +656,13 @@ public CombatKeepInventoryVelocity(
             case CLUSTER_EXIT -> {
 
                 /*
+                 * Same ordering requirement as SERVER_SWITCH:
+                 * evaluate punishment before clearOnDisconnect()
+                 * can erase the state being checked.
+                 */
+                maybePunishClusterExit(transition);
+
+                /*
                  * If configured, clear mirrored combat state when
                  * the player leaves the entire Velocity cluster.
                  */
@@ -668,6 +684,143 @@ public CombatKeepInventoryVelocity(
                 }
             }
         }
+    }
+
+    /*
+     * ==========================================================
+     * PUNISHMENT
+     * ==========================================================
+     */
+
+    private void maybePunishServerSwitch(
+            SessionTransition transition
+    ) {
+
+        if (!config.isServerSwitchEnabled()
+                || !config.checkCombatOnServerSwitch()) {
+            return;
+        }
+
+        if (!config.isPunishmentEnabled()
+                || !config.isSwitchPunishmentEnabled()) {
+            return;
+        }
+
+        if (!isPunishable(
+                transition.getPlayerId(),
+                config.requireActiveCombatOnServerSwitch()
+        )) {
+            return;
+        }
+
+        boolean executed =
+                punishmentService.executeCommands(
+                        transition.getPlayerId(),
+                        config.getSwitchPunishmentCommands(),
+                        "combat-logging via server switch"
+                );
+
+        if (executed
+                && config.logPunishment()) {
+
+            logger.info(
+                    "Punishment executed for {} "
+                            + "(reason: server switch while in combat).",
+                    transition.getPlayerId()
+            );
+        }
+    }
+
+    private void maybePunishClusterExit(
+            SessionTransition transition
+    ) {
+
+        if (!config.isClusterExitEnabled()
+                || !config.checkCombatOnClusterExit()) {
+            return;
+        }
+
+        if (!config.isPunishmentEnabled()
+                || !config.isClusterExitPunishmentEnabled()) {
+            return;
+        }
+
+        if (!isPunishable(
+                transition.getPlayerId(),
+                config.requireActiveCombatOnClusterExit()
+        )) {
+            return;
+        }
+
+        boolean executed =
+                punishmentService.executeCommands(
+                        transition.getPlayerId(),
+                        config.getClusterExitPunishmentCommands(),
+                        "combat-logging via cluster exit"
+                );
+
+        if (executed
+                && config.logPunishment()) {
+
+            logger.info(
+                    "Punishment executed for {} "
+                            + "(reason: left the network while in combat).",
+                    transition.getPlayerId()
+            );
+        }
+    }
+
+    /**
+     * Shared punishment gate for both transition types.
+     *
+     * @param playerId           player being evaluated
+     * @param requireActiveCombat whether the caller's specific
+     *                            config section requires an
+     *                            active tag before punishing
+     */
+    private boolean isPunishable(
+            UUID playerId,
+            boolean requireActiveCombat
+    ) {
+
+        if (playerId == null) {
+            return false;
+        }
+
+        boolean inCombat =
+                combatStateManager.isInCombat(
+                        playerId
+                );
+
+        if (config.requireCombatTag()
+                && !inCombat) {
+            return false;
+        }
+
+        if (requireActiveCombat
+                && !inCombat) {
+            return false;
+        }
+
+        String bypassPermission =
+                config.getBypassPermission();
+
+        if (bypassPermission != null
+                && !bypassPermission.isBlank()) {
+
+            boolean bypassed =
+                    proxy.getPlayer(playerId)
+                            .map(player -> player.hasPermission(
+                                    bypassPermission
+                            ))
+                            .orElse(false);
+
+            if (bypassed) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /*
