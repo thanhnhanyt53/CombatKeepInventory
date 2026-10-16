@@ -28,6 +28,7 @@ public final class DefaultDeathService
     private final InventoryPolicy defaultPolicy;
     private final InventoryPolicy combatDeathPolicy;
     private final Map<DeathReason, InventoryPolicy> deathPolicies;
+    private final Map<String, Integer> extraMap;
 
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
