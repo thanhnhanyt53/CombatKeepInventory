@@ -2,7 +2,6 @@ package com.votri.combatkeepinv.core.internal;
 
 import com.votri.combatkeepinv.core.combat.CombatSession;
 import com.votri.combatkeepinv.core.combat.CombatSessionManager;
-import com.votri.combatkeepinv.core.combat.CombatState;
 import com.votri.combatkeepinv.core.damage.DamageAttributionResult;
 import com.votri.combatkeepinv.core.damage.DamageAttributionService;
 import com.votri.combatkeepinv.core.damage.DamageSource;
@@ -19,8 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-
-    public final class DefaultDeathService
+public final class DefaultDeathService
         implements DeathService {
 
     private final CombatSessionManager combatSessionManager;
@@ -92,8 +90,6 @@ import java.util.UUID;
         this.deathPolicies = Map.copyOf(deathPolicies);
         this.extraMap = extraMap != null ? Map.copyOf(extraMap) : Map.of();
     }
-          
-
 
     @Override
     public DeathContext createContext(
@@ -126,23 +122,6 @@ import java.util.UUID;
                 platform
         );
     }
-
-    public DefaultDeathService(
-        com.votri.combatkeepinv.core.combat.CombatSessionManager sessionManager,
-        com.votri.combatkeepinv.core.damage.DamageAttributionService damageAttributionService,
-        com.votri.combatkeepinv.core.platform.PlatformInfo platformInfo,
-        com.votri.combatkeepinv.core.inventory.InventoryPolicy defaultPolicy,
-        com.votri.combatkeepinv.core.inventory.InventoryPolicy combatPolicy,
-        java.util.Map<com.votri.combatkeepinv.core.death.DeathReason, com.votri.combatkeepinv.core.inventory.InventoryPolicy> reasonPolicies,
-        java.util.Map<String, Integer> extraMap
-) {
-    // Tái sử dụng constructor 6 tham số có sẵn (nếu lớp đã hỗ trợ)
-    this(sessionManager, damageAttributionService, platformInfo, defaultPolicy, combatPolicy, reasonPolicies);
-    
-    // Gán giá trị cho tham số thứ 7
-    this.extraMap = extraMap;
-}
-
 
     @Override
     public DeathDecision evaluate(
