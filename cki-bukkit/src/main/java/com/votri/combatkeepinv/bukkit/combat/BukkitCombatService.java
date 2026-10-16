@@ -83,7 +83,8 @@ public final class BukkitCombatService
                                 com.votri.combatkeepinv.core.inventory.InventoryAction.DROP,
                                 false
                         ),
-                        createDeathPolicies()
+                        createDeathPolicies(),
+                        createPolicyPriorities()
                 );
     }
 
@@ -351,6 +352,15 @@ public final class BukkitCombatService
         );
     }
 
+
+    private Map<String, Integer> createPolicyPriorities() {
+        Map<String, Integer> priorities = new java.util.HashMap<>();
+        priorities.put("combat-death", plugin.getConfig().getInt("inventory.policies.combat-death.priority", 400));
+        priorities.put("player-kill", plugin.getConfig().getInt("inventory.policies.player-kill.priority", 300));
+        priorities.put("pve-death", plugin.getConfig().getInt("inventory.policies.pve-death.priority", 200));
+        priorities.put("unknown", plugin.getConfig().getInt("inventory.policies.unknown.priority", 100));
+        return priorities;
+    }
 
     private Map<DeathReason, com.votri.combatkeepinv.core.inventory.InventoryPolicy> createDeathPolicies() {
         Map<DeathReason, com.votri.combatkeepinv.core.inventory.InventoryPolicy> policies =
