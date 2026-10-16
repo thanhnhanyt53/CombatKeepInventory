@@ -19,7 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-public final class DefaultDeathService
+
+    public final class DefaultDeathService
         implements DeathService {
 
     private final CombatSessionManager combatSessionManager;
@@ -30,6 +31,7 @@ public final class DefaultDeathService
     private final Map<DeathReason, InventoryPolicy> deathPolicies;
     private final Map<String, Integer> extraMap;
 
+    // Constructor 4 tham số
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
             DamageAttributionService damageAttributionService,
@@ -47,10 +49,12 @@ public final class DefaultDeathService
                         defaultPolicy.keepExperience(),
                         defaultPolicy.keepLevels()
                 ),
-                defaultDeathPolicies(defaultPolicy)
+                defaultDeathPolicies(defaultPolicy),
+                Map.of()
         );
     }
 
+    // Constructor 6 tham số
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
             DamageAttributionService damageAttributionService,
@@ -59,13 +63,37 @@ public final class DefaultDeathService
             InventoryPolicy combatDeathPolicy,
             Map<DeathReason, InventoryPolicy> deathPolicies
     ) {
+        this(
+                combatSessionManager,
+                damageAttributionService,
+                platform,
+                defaultPolicy,
+                combatDeathPolicy,
+                deathPolicies,
+                Map.of()
+        );
+    }
+
+    // Constructor 7 tham số (Master Constructor)
+    public DefaultDeathService(
+            CombatSessionManager combatSessionManager,
+            DamageAttributionService damageAttributionService,
+            PlatformInfo platform,
+            InventoryPolicy defaultPolicy,
+            InventoryPolicy combatDeathPolicy,
+            Map<DeathReason, InventoryPolicy> deathPolicies,
+            Map<String, Integer> extraMap
+    ) {
         this.combatSessionManager = combatSessionManager;
         this.damageAttributionService = damageAttributionService;
         this.platform = platform;
         this.defaultPolicy = defaultPolicy;
         this.combatDeathPolicy = combatDeathPolicy;
         this.deathPolicies = Map.copyOf(deathPolicies);
+        this.extraMap = extraMap != null ? Map.copyOf(extraMap) : Map.of();
     }
+          
+
 
     @Override
     public DeathContext createContext(
