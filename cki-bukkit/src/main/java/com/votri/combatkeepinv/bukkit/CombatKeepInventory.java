@@ -7,6 +7,8 @@ import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.command.CombatCommand;
 import com.votri.combatkeepinv.bukkit.debug.DebugManager;
 import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
+import com.votri.combatkeepinv.bukkit.version.VersionAdapter;
+import com.votri.combatkeepinv.bukkit.version.VersionAdapterFactory;
 import com.votri.combatkeepinv.bukkit.hook.WorldGuardHook;
 import com.votri.combatkeepinv.bukkit.listener.CombatListener;
 import com.votri.combatkeepinv.bukkit.platform.BukkitPlatformDetector;
@@ -48,7 +50,7 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.2.5";
+            "1.2.5b-beta";
 
     private static final int CONFIG_VERSION = 4;
 
@@ -60,6 +62,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     private WorldGuardHook worldGuardHook;
     private CombatListener combatListener;
     private DebugManager debugManager;
+    private VersionAdapter versionAdapter;
 
     private PlatformInfo platformInfo;
 
@@ -119,6 +122,14 @@ public final class CombatKeepInventory extends JavaPlugin {
 
             return;
         }
+
+        /*
+         * ==========================================================
+         * VERSION ADAPTER
+         * ==========================================================
+         */
+
+        initializeVersionAdapter();
 
         /*
          * ==========================================================
@@ -232,6 +243,7 @@ public final class CombatKeepInventory extends JavaPlugin {
         combatManager = null;
         combatStateBridge = null;
         debugManager = null;
+        versionAdapter = null;
 
         combatAPI = null;
         damageAPI = null;
@@ -430,6 +442,44 @@ public final class CombatKeepInventory extends JavaPlugin {
 
     /*
      * ==========================================================
+     * VERSION ADAPTER
+     * ==========================================================
+     */
+
+    private void initializeVersionAdapter() {
+
+        if (versionAdapter == null) {
+
+            versionAdapter =
+                    VersionAdapterFactory.create(
+                            getServer().getBukkitVersion(),
+                            getLogger()
+                    );
+        }
+    }
+
+    public VersionAdapter getVersionAdapter() {
+
+        if (versionAdapter == null) {
+
+            /*
+             * Should only happen if something calls this before
+             * onEnable() reaches initializeVersionAdapter(); keep
+             * combat processing from NPEing on a race by probing
+             * on demand instead.
+             */
+            versionAdapter =
+                    VersionAdapterFactory.create(
+                            getServer().getBukkitVersion(),
+                            getLogger()
+                    );
+        }
+
+        return versionAdapter;
+    }
+
+    /*
+     * ==========================================================
      * CORE API FACADES INITIALIZATION
      * ==========================================================
      */
@@ -488,10 +538,29 @@ public final class CombatKeepInventory extends JavaPlugin {
                                 this,
                                 () -> {
 
-                                    if (combatManager != null) {
+                                    if (combatManager == null) {
+                                        return;
+                                    }
 
-                                        combatManager
-                                                .cleanupExpired();
+                                    for (java.util.UUID expired
+                                            : combatManager.cleanupExpired()) {
+
+                                        org.bukkit.entity.Player player =
+                                                getServer().getPlayer(
+                                                        expired
+                                                );
+
+                                        if (player != null
+                                                && player.isOnline()) {
+
+                                            player.sendMessage(
+                                                    getPrefixedMessage(
+                                                            "combat.combat-ended",
+                                                            "&aYour combat tag "
+                                                                    + "has expired."
+                                                    )
+                                            );
+                                        }
                                     }
                                 },
                                 20L,
@@ -1059,6 +1128,38 @@ public final class CombatKeepInventory extends JavaPlugin {
         }
 
         return color(value);
+    }
+
+    /**
+     * Same as {@link #getMessage(String, String)} but prepends
+     * the configured {@code prefix} key from message.yml.
+     *
+     * <p>Used for direct player-facing notifications (combat
+     * tagged/ended, inventory kept/dropped/partially kept) so the
+     * {@code prefix} key actually has an effect. Command output
+     * such as {@code /cki info} intentionally keeps using the
+     * un-prefixed {@link #getMessage(String, String)} instead --
+     * repeating a prefix on every line of a multi-line panel would
+     * look wrong.</p>
+     */
+    public String getPrefixedMessage(
+            String path,
+            String fallback
+    ) {
+
+        String prefix =
+                messages == null
+                        ? ""
+                        : messages.getString(
+                                "prefix",
+                                ""
+                        );
+
+        return color(prefix)
+                + getMessage(
+                        path,
+                        fallback
+                );
     }
 
     public List<String> getMessageList(
