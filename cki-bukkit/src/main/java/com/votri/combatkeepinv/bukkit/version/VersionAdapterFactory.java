@@ -84,9 +84,8 @@ public final class VersionAdapterFactory {
             return new Era1_20PlusAdapter(logger);
         }
 
-        if (minor == 17) {
-            return new Era1_17Adapter(logger);
-        }
+        
+        
 
         if (minor == 18 || minor == 19) {
             return new Era1_18To1_19Adapter(logger);
@@ -109,15 +108,14 @@ public final class VersionAdapterFactory {
                             + minor
                             + ", which is older than the 1.17 "
                             + "minimum this build supports. "
-                            + "Using the 1.17.x adapter as a "
+                            + "Using the 1.18.x adapter as a "
                             + "best-effort fallback; expect "
                             + "reduced compatibility and please "
                             + "use a build targeting your "
                             + "version instead."
             );
 
-            return new Era1_17Adapter(logger);
-        }
+            
 
         /*
          * 1.20.x, 1.21.x, and anything newer/unrecognized above
