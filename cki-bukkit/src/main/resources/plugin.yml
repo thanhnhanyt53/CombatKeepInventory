@@ -7,7 +7,7 @@ main: com.votri.combatkeepinv.bukkit.CombatKeepInventory
 # itself; a server at or above this version loads it fine (this
 # is a floor, not an exact match). Keep this at the oldest
 # version actually supported by VersionAdapter below.
-api-version: '1.17'
+api-version: '1.20'
 
 author: ThanhNhan-thanhnhan0928
 description: CombatTag and inventory management system.
