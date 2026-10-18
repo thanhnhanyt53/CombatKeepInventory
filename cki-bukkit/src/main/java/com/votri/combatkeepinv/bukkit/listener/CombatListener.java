@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Converts Bukkit combat/death events into CKI state changes.
@@ -144,9 +145,15 @@ public final class CombatListener implements Listener {
         DamageSource source;
 
         if (event.getDamager()
-                instanceof TNTPrimed tnt
-                && tnt.getSource() instanceof Player) {
+                instanceof TNTPrimed) {
 
+            /*
+             * attacker was already resolved above via
+             * resolveAttackingPlayer(), which for a TNTPrimed
+             * damager can only have succeeded through
+             * VersionAdapter#getTntIgniter(...) -- no need to
+             * probe the source a second time here.
+             */
             source =
                     BukkitDamageSource.playerExplosion(
                             attacker.getUniqueId(),
@@ -187,6 +194,12 @@ public final class CombatListener implements Listener {
                 );
 
         debugCombatResult(
+                attacker,
+                victim,
+                result
+        );
+
+        notifyCombatResult(
                 attacker,
                 victim,
                 result
@@ -315,6 +328,12 @@ public final class CombatListener implements Listener {
                 victim,
                 result
         );
+
+        notifyCombatResult(
+                attacker,
+                victim,
+                result
+        );
     }
 
     @EventHandler
@@ -327,9 +346,15 @@ public final class CombatListener implements Listener {
             return;
         }
 
-        if (!(tnt.getSource() instanceof Player player)) {
+        Optional<Player> igniter =
+                plugin.getVersionAdapter()
+                        .getTntIgniter(tnt);
+
+        if (igniter.isEmpty()) {
             return;
         }
+
+        Player player = igniter.get();
 
         Location location = tnt.getLocation();
         if (location.getWorld() == null) {
@@ -510,13 +535,19 @@ public final class CombatListener implements Listener {
                 );
             }
 
-            if (damager instanceof TNTPrimed tnt
-                    && tnt.getSource() instanceof Player attacker) {
-                return BukkitDamageSource.playerExplosion(
-                        attacker.getUniqueId(),
-                        victim.getUniqueId(),
-                        com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
-                );
+            if (damager instanceof TNTPrimed tnt) {
+
+                Optional<Player> igniter =
+                        plugin.getVersionAdapter()
+                                .getTntIgniter(tnt);
+
+                if (igniter.isPresent()) {
+                    return BukkitDamageSource.playerExplosion(
+                            igniter.get().getUniqueId(),
+                            victim.getUniqueId(),
+                            com.votri.combatkeepinv.core.damage.DamageCauseType.TNT
+                    );
+                }
             }
         }
 
@@ -549,21 +580,55 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        Player victim =
+                event.getEntity();
+
         InventoryPolicy policy = decision.getInventoryPolicy();
         switch (policy.getAction()) {
-            case KEEP -> handleKeepInventory(
-                    event,
-                    policy.keepExperience(),
-                    policy.keepLevels()
-            );
-            case DROP -> handleDropInventory(
-                    event,
-                    policy.keepExperience(),
-                    policy.keepLevels()
-            );
-            case PARTIAL -> handlePartialInventory(event, policy);
+            case KEEP -> {
+                handleKeepInventory(
+                        event,
+                        policy.keepExperience(),
+                        policy.keepLevels()
+                );
+                victim.sendMessage(
+                        plugin.getPrefixedMessage(
+                                "death.keep-inventory",
+                                "&aYour inventory has been kept."
+                        )
+                );
+            }
+            case DROP -> {
+                handleDropInventory(
+                        event,
+                        policy.keepExperience(),
+                        policy.keepLevels()
+                );
+                victim.sendMessage(
+                        plugin.getPrefixedMessage(
+                                "death.drop-inventory",
+                                "&cYour inventory has been dropped "
+                                        + "because you died in combat."
+                        )
+                );
+            }
+            case PARTIAL -> {
+                handlePartialInventory(event, policy);
+                victim.sendMessage(
+                        plugin.getPrefixedMessage(
+                                "death.partial-inventory",
+                                "&eSome of your inventory was kept; "
+                                        + "the rest was dropped."
+                        )
+                );
+            }
             case VANILLA -> {
-                // Preserve the server's vanilla keepInventory behavior.
+                /*
+                 * Preserve the server's vanilla keepInventory
+                 * behavior. No message is sent on purpose -- CKI
+                 * is deliberately staying out of the way here, so
+                 * a CKI-branded message would be misleading.
+                 */
             }
         }
     }
@@ -777,9 +842,15 @@ public final class CombatListener implements Listener {
             }
         }
 
-        if (damager instanceof TNTPrimed tnt
-                && tnt.getSource() instanceof Player player) {
-            return player;
+        if (damager instanceof TNTPrimed tnt) {
+
+            Optional<Player> igniter =
+                    plugin.getVersionAdapter()
+                            .getTntIgniter(tnt);
+
+            if (igniter.isPresent()) {
+                return igniter.get();
+            }
         }
 
         return null;
@@ -832,6 +903,43 @@ public final class CombatListener implements Listener {
         }
 
         plugin.getDebugManager().broadcast(message);
+    }
+
+    /**
+     * Notifies the two participants that they were just tagged.
+     * Only fires on a brand-new tag (CombatResult.SUCCESS) --
+     * a refresh of an already-active tag (ALREADY_IN_COMBAT)
+     * intentionally stays silent so an ongoing fight with many
+     * hits per second does not spam chat every single hit.
+     */
+    private void notifyCombatResult(
+            Player attacker,
+            Player victim,
+            CombatResult result
+    ) {
+        if (result != CombatResult.SUCCESS) {
+            return;
+        }
+
+        attacker.sendMessage(
+                plugin.getPrefixedMessage(
+                        "combat.attacker-tagged",
+                        "&cYou are now in combat with &e%player%&c."
+                ).replace(
+                        "%player%",
+                        victim.getName()
+                )
+        );
+
+        victim.sendMessage(
+                plugin.getPrefixedMessage(
+                        "combat.victim-tagged",
+                        "&cYou are now in combat with &e%player%&c."
+                ).replace(
+                        "%player%",
+                        attacker.getName()
+                )
+        );
     }
 
     private void debugCombatResult(
