@@ -369,8 +369,13 @@ public final class CombatManager {
 
     /**
      * Cleans up expired core sessions.
+     *
+     * @return the player IDs whose CombatTag just expired as a
+     *         result of this call, so the caller can notify them
+     *         in-game (this class has no Bukkit messaging access
+     *         of its own by design)
      */
-    public void cleanupExpired() {
+    public java.util.List<UUID> cleanupExpired() {
         long now =
                 System.currentTimeMillis();
 
@@ -378,6 +383,9 @@ public final class CombatManager {
                 sessionManager.getActiveSessions();
 
         sessionManager.cleanupExpiredSessions(now);
+
+        java.util.List<UUID> justExpired =
+                new java.util.ArrayList<>();
 
         for (CombatSession previous : before) {
 
@@ -397,8 +405,14 @@ public final class CombatManager {
                 sessionManager.removeSession(
                         previous.getPlayerId()
                 );
+
+                justExpired.add(
+                        previous.getPlayerId()
+                );
             }
         }
+
+        return justExpired;
     }
 
     /**
