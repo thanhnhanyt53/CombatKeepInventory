@@ -30,8 +30,7 @@
           checking whether newer-only syntax or java.* API has
           been introduced since.
         -->
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <paper.api.version>1.20.1-R0.1-SNAPSHOT</paper.api.version>
