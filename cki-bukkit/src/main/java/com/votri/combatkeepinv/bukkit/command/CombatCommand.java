@@ -179,6 +179,22 @@ public final class CombatCommand
         );
 
         sender.sendMessage(
+                plugin.color(
+                        "&7Version adapter: &f"
+                                + plugin.getVersionAdapter()
+                                        .getLabel()
+                                + " &7(TNT source tracking: &f"
+                                + (
+                                plugin.getVersionAdapter()
+                                        .supportsTntSourceTracking()
+                                        ? "enabled"
+                                        : "disabled"
+                        )
+                                + "&7)"
+                )
+        );
+
+        sender.sendMessage(
                 plugin.getMessage(
                         "command.info.duration",
                         "&7Combat duration: &f%seconds% seconds"
@@ -466,7 +482,7 @@ public final class CombatCommand
 
         sender.sendMessage(
                 plugin.getMessage(
-                        "general.no-permission",
+                        "command.no-permission",
                         "&cYou don't have permission."
                 )
         );
