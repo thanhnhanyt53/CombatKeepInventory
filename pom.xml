@@ -22,7 +22,7 @@
           16 is the lowest Java release that still accepts every
           language feature already used across the modules
           (records, pattern-matching instanceof, switch
-          expressions -- all stable since 16). It is also exactly
+          expressions: all stable since 16). It is also exactly
           the minimum JRE Minecraft 1.17 itself requires, so the
           compiled bytecode loads on 1.17 through 1.21.x/26.x JVMs
           alike (newer JVMs always run older bytecode fine; the
