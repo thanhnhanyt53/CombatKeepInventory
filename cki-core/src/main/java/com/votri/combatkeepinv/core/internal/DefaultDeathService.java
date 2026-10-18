@@ -2,6 +2,7 @@ package com.votri.combatkeepinv.core.internal;
 
 import com.votri.combatkeepinv.core.combat.CombatSession;
 import com.votri.combatkeepinv.core.combat.CombatSessionManager;
+import com.votri.combatkeepinv.core.combat.CombatState;
 import com.votri.combatkeepinv.core.damage.DamageAttributionResult;
 import com.votri.combatkeepinv.core.damage.DamageAttributionService;
 import com.votri.combatkeepinv.core.damage.DamageSource;
@@ -27,9 +28,8 @@ public final class DefaultDeathService
     private final InventoryPolicy defaultPolicy;
     private final InventoryPolicy combatDeathPolicy;
     private final Map<DeathReason, InventoryPolicy> deathPolicies;
-    private final Map<String, Integer> extraMap;
+    private final Map<String, Integer> policyPriorities;
 
-    // Constructor 4 tham số
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
             DamageAttributionService damageAttributionService,
@@ -47,12 +47,10 @@ public final class DefaultDeathService
                         defaultPolicy.keepExperience(),
                         defaultPolicy.keepLevels()
                 ),
-                defaultDeathPolicies(defaultPolicy),
-                Map.of()
+                defaultDeathPolicies(defaultPolicy)
         );
     }
 
-    // Constructor 6 tham số
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
             DamageAttributionService damageAttributionService,
@@ -61,18 +59,11 @@ public final class DefaultDeathService
             InventoryPolicy combatDeathPolicy,
             Map<DeathReason, InventoryPolicy> deathPolicies
     ) {
-        this(
-                combatSessionManager,
-                damageAttributionService,
-                platform,
-                defaultPolicy,
-                combatDeathPolicy,
-                deathPolicies,
-                Map.of()
-        );
+        this(combatSessionManager, damageAttributionService, platform,
+                defaultPolicy, combatDeathPolicy, deathPolicies, Map.of());
     }
 
-    // Constructor 7 tham số (Master Constructor)
+    /** Higher number wins; ties retain the legacy combat-first behavior. */
     public DefaultDeathService(
             CombatSessionManager combatSessionManager,
             DamageAttributionService damageAttributionService,
@@ -80,15 +71,15 @@ public final class DefaultDeathService
             InventoryPolicy defaultPolicy,
             InventoryPolicy combatDeathPolicy,
             Map<DeathReason, InventoryPolicy> deathPolicies,
-            Map<String, Integer> extraMap
+            Map<String, Integer> policyPriorities
     ) {
+        this.policyPriorities = Map.copyOf(policyPriorities);
         this.combatSessionManager = combatSessionManager;
         this.damageAttributionService = damageAttributionService;
         this.platform = platform;
         this.defaultPolicy = defaultPolicy;
         this.combatDeathPolicy = combatDeathPolicy;
         this.deathPolicies = Map.copyOf(deathPolicies);
-        this.extraMap = extraMap != null ? Map.copyOf(extraMap) : Map.of();
     }
 
     @Override
@@ -130,20 +121,59 @@ public final class DefaultDeathService
         InventoryPolicy policy;
         String ruleId;
 
+        DeathReason reason = context.getDeathReason();
+        boolean playerCaused = context.wasPlayerCaused()
+                || reason == DeathReason.PLAYER
+                || reason == DeathReason.PLAYER_PROJECTILE
+                || reason == DeathReason.PLAYER_EXPLOSION;
+        boolean pve = reason == DeathReason.ENTITY
+                || reason == DeathReason.ENVIRONMENT
+                || reason == DeathReason.VOID
+                || reason == DeathReason.FIRE
+                || reason == DeathReason.LAVA;
+
+        // Consider all matching policies, not merely the first matching if-block.
+        // Defaults reproduce the original behavior: combat > player > PvE > unknown.
+        int highest = Integer.MIN_VALUE;
+        policy = defaultPolicy;
+        ruleId = "default";
+
         if (context.wasInCombat()) {
+            highest = priority("combat-death", 400);
             policy = combatDeathPolicy;
             ruleId = "combat-death";
-        } else {
-            policy = deathPolicies.get(context.getDeathReason());
-            if (policy == null && context.wasPlayerCaused()) {
-                policy = deathPolicies.get(DeathReason.PLAYER);
-            }
-            if (policy == null) {
-                policy = defaultPolicy;
-                ruleId = "default";
-            } else {
-                ruleId = "death." + context.getDeathReason().name().toLowerCase();
-            }
+        }
+        if (playerCaused && priority("player-kill", 300) > highest) {
+            highest = priority("player-kill", 300);
+            /*
+             * Look up the policy for the ACTUAL reason (PLAYER,
+             * PLAYER_PROJECTILE or PLAYER_EXPLOSION), not a
+             * hardcoded PLAYER key. createDeathPolicies() maps
+             * all three to the same "player-kill" policy object
+             * by default, which is why using DeathReason.PLAYER
+             * unconditionally looked correct -- but it silently
+             * ignores a reason-specific override (e.g. a
+             * different policy configured for PLAYER_EXPLOSION
+             * alone) the moment an admin sets one up.
+             */
+            policy = deathPolicies.getOrDefault(reason, defaultPolicy);
+            ruleId = "player-kill";
+        }
+        if (pve && priority("pve-death", 200) > highest) {
+            highest = priority("pve-death", 200);
+            policy = deathPolicies.getOrDefault(reason, defaultPolicy);
+            ruleId = "pve-death";
+        }
+        if (reason == DeathReason.UNKNOWN && priority("unknown", 100) > highest) {
+            highest = priority("unknown", 100);
+            policy = deathPolicies.getOrDefault(DeathReason.UNKNOWN, defaultPolicy);
+            ruleId = "unknown";
+        }
+        if (highest == Integer.MIN_VALUE) {
+            policy = deathPolicies.getOrDefault(reason, defaultPolicy);
+            ruleId = deathPolicies.containsKey(reason)
+                    ? "death." + reason.name().toLowerCase(java.util.Locale.ROOT)
+                    : "default";
         }
 
         boolean keepInventory = policy.getAction() == InventoryAction.KEEP;
@@ -154,6 +184,10 @@ public final class DefaultDeathService
                 context.getDeathReason(),
                 ruleId
         );
+    }
+
+    private int priority(String rule, int fallback) {
+        return policyPriorities.getOrDefault(rule, fallback);
     }
 
     @Override
