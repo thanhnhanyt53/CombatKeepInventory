@@ -68,9 +68,14 @@ inventory:
   # 1.2.5 reason-specific inventory policies.
   # action: KEEP, DROP, PARTIAL or VANILLA
   # priority: larger number wins when multiple rules match the same death.
-  # Example: player-kill priority 500 overrides combat-death priority 400
-  # for a PvP kill even when the victim has an active CombatTag.
-  # Equal priority keeps the previous precedence (combat first).
+  # Defaults below (400/300/200/100) reproduce the original,
+  # pre-priority precedence: combat-death first, then player-kill,
+  # then pve-death, then unknown. Equal priority also keeps that
+  # same order (combat first). If you want a PvP kill to drop
+  # loot even while the victim has an active CombatTag -- i.e.
+  # player-kill should outrank combat-death -- raise player-kill's
+  # priority above 400 (e.g. 500) yourself; that is NOT the
+  # shipped default.
   policies:
 
     combat-death:
@@ -84,7 +89,7 @@ inventory:
       keep-levels: true
 
     player-kill:
-      priority: 500
+      priority: 300
       action: DROP
       keep-main: false
       keep-armor: false

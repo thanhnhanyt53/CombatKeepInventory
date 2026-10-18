@@ -10,36 +10,60 @@
 # General
 # ============================================================
 
+# Prepended to every message sent via getPrefixedMessage(...) --
+# that is, the direct player notifications below (combat.* and
+# death.*). Command output (/cki info, /cki debug, usage, errors)
+# intentionally does NOT use the prefix, since repeating it on
+# every line of a multi-line panel would look wrong.
 prefix: "&8[&cCombatKeepInventory&8] "
 
 
 # ============================================================
 # Combat
 # ============================================================
+# Sent to the two participants of a hit via onEntityDamageByEntity
+# in CombatListener. "tagged" is only sent once, when a BRAND NEW
+# CombatTag is created (CombatResult.SUCCESS); on every later hit
+# while already tagged (CombatResult.ALREADY_IN_COMBAT -- i.e. a
+# "refresh") nothing is sent on purpose, to avoid spamming chat on
+# every single hit of an ongoing fight. "combat-ended" is sent
+# once when a tag naturally expires.
 
 combat:
   tagged: "&cYou are now in combat!"
   untagged: "&aYou are no longer in combat."
-  already-in-combat: "&cYou are already in combat!"
   remaining: "&cYou are in combat for &e%seconds%s&c."
 
-  attacker-tagged: "&cYou are now in combat with &e%player&c."
-  victim-tagged: "&cYou are now in combat with &e%player&c."
+  attacker-tagged: "&cYou are now in combat with &e%player%&c."
+  victim-tagged: "&cYou are now in combat with &e%player%&c."
 
-  combat-started: "&cCombat started with &e%player&c."
   combat-refreshed: "&eCombat timer refreshed."
 
   combat-ended: "&aYour combat tag has expired."
+
+  # Not currently sent anywhere (no code path asks "is this
+  # player already in combat" and then messages them about it).
+  # Left here in case a future command wants it.
+  already-in-combat: "&cYou are already in combat!"
 
 
 # ============================================================
 # Death
 # ============================================================
+# Sent to the dying player in CombatListener.applyCoreDecision(),
+# matching whichever InventoryPolicy action was resolved. VANILLA
+# intentionally sends nothing -- CKI is explicitly staying out of
+# the way and letting the server's own keepInventory gamerule
+# apply, so a CKI-branded message would be misleading there.
 
 death:
   keep-inventory: "&aYour inventory has been kept."
   drop-inventory: "&cYour inventory has been dropped because you died in combat."
+  partial-inventory: "&eSome of your inventory was kept; the rest was dropped."
 
+  # Not currently sent (no second "why" message is sent alongside
+  # the keep/drop/partial one above, to avoid two death messages
+  # at once). Left here in case you want to wire these in too.
   combat-death: "&cYou died while in combat."
   normal-death: "&aYou died outside of combat."
 
@@ -53,17 +77,37 @@ command:
   player-only: "&cThis command can only be used by a player."
   unknown-subcommand: "&cUnknown subcommand."
 
+  usage:
+    - "&e/cki reload"
+    - "&e/cki info"
+    - "&e/cki debug [player]"
+
   reload:
-    success: "&aCombatKeepInventory configuration reloaded."
+    success: "&aCombatKeepInventory has been reloaded."
     failed: "&cFailed to reload CombatKeepInventory configuration."
 
+  info:
+    header: "&8&m-----------------------------"
+    footer: "&8&m-----------------------------"
+    title: "&cCombatKeepInventory &f"
+    implementation-version: "&7Implementation: &f%version%"
+    minecraft-version: "&7Minecraft: &f%version%"
+    platform: "&7Platform: &f%platform%"
+    selected-platform: "&7Selected mode: &f%mode%"
+    worldguard: "&7WorldGuard: &f%worldguard%"
+    duration: "&7Combat duration: &f%seconds% seconds"
+
+  # Reserved for a "/cki combat <player> end|force-end" admin
+  # subcommand. That subcommand does not exist yet -- only
+  # reload/info/debug do -- so these are not sent by anything
+  # right now. Ask for it to be wired up if you want it.
   combat:
     player-not-found: "&cPlayer not found."
     not-in-combat: "&aThat player is not currently in combat."
     in-combat: "&cThat player is currently in combat."
 
-    ended: "&aCombat has been ended for &e%player&c."
-    forced-ended: "&aCombat has been forcefully ended for &e%player&c."
+    ended: "&aCombat has been ended for &e%player%&c."
+    forced-ended: "&aCombat has been forcefully ended for &e%player%&c."
 
 
 # ============================================================
@@ -72,8 +116,8 @@ command:
 
 platform:
   mismatch: "&cThe configured platform does not match the detected server platform."
-  detected: "&7Detected platform: &f%platform"
-  selected: "&7Selected platform: &f%platform"
+  detected: "&7Detected platform: &f%platform%"
+  selected: "&7Selected platform: &f%platform%"
 
 
 # ============================================================
