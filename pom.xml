@@ -18,8 +18,20 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.release>21</maven.compiler.release>
+        <!--
+          16 is the lowest Java release that still accepts every
+          language feature already used across the modules
+          (records, pattern-matching instanceof, switch
+          expressions -- all stable since 16). It is also exactly
+          the minimum JRE Minecraft 1.17 itself requires, so the
+          compiled bytecode loads on 1.17 through 1.21.x/26.x JVMs
+          alike (newer JVMs always run older bytecode fine; the
+          reverse is what breaks). Do not raise this without
+          checking whether newer-only syntax or java.* API has
+          been introduced since.
+        -->
+        <java.version>16</java.version>
+        <maven.compiler.release>16</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
