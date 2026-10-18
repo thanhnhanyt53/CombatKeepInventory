@@ -30,11 +30,11 @@
           checking whether newer-only syntax or java.* API has
           been introduced since.
         -->
-        <java.version>16</java.version>
-        <maven.compiler.release>16</maven.compiler.release>
+        <maven.compiler.source>16</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
+        <paper.api.version>1.17.1-R0.1-SNAPSHOT</paper.api.version>
         <velocity.api.version>3.4.0-SNAPSHOT</velocity.api.version>
         <worldguard.version>7.0.16</worldguard.version>
         <snakeyaml.version>2.4</snakeyaml.version>
