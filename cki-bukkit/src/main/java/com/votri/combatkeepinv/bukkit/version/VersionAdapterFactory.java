@@ -114,6 +114,7 @@ public final class VersionAdapterFactory {
                             + "use a build targeting your "
                             + "version instead."
             );
+        }
 
             
 
