@@ -260,9 +260,20 @@ public final class WorldGuardHook {
                         platform
                 );
 
+        /*
+         * BukkitAdapter lives in WorldEdit (a WorldGuard
+         * dependency), NOT in WorldGuard's own "bukkit" package.
+         * The previous "com.sk89q.worldguard.bukkit.BukkitAdapter"
+         * path does not exist on any real install, so every call
+         * here always threw ClassNotFoundException -- silently
+         * caught below, always falling back to
+         * worldguard.fail-open (true by default). In practice
+         * this meant WorldGuard region checks never ran at all,
+         * regardless of how regions were configured.
+         */
         Class<?> adapter =
                 Class.forName(
-                        "com.sk89q.worldguard.bukkit.BukkitAdapter"
+                        "com.sk89q.worldedit.bukkit.BukkitAdapter"
                 );
 
         Method adaptWorld =
