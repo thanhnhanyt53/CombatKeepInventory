@@ -50,7 +50,7 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.2.5b-beta";
+            "1.2.5";
 
     private static final int CONFIG_VERSION = 4;
 
