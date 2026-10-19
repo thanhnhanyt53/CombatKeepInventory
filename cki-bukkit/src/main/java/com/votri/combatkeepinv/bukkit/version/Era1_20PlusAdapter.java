@@ -7,7 +7,7 @@ import java.util.logging.Logger;
  * the fallback adapter {@link VersionAdapterFactory} picks for any
  * server version string it cannot parse/recognize, under the
  * assumption that an unrecognized version is more likely to be
- * newer than this plugin's release than older than 1.17.
+ * newer than this plugin's release than older than 1.18.
  */
 final class Era1_20PlusAdapter extends AbstractVersionAdapter {
 

@@ -8,12 +8,12 @@ import java.util.Optional;
 /**
  * Isolates the handful of Bukkit API touchpoints in this plugin
  * that are not guaranteed to exist/behave identically across the
- * whole 1.17 - 1.20.6 (and current) support range.
+ * whole 1.18 - 1.20.6 (and current) support range.
  *
  * <p>Every other API this plugin uses (PlayerDeathEvent,
  * EntityDamageEvent, EntityExplodeEvent, PlayerInventory array
  * accessors, Material, CommandExecutor/TabCompleter) has been
- * stable Bukkit API since well before 1.17, so it is called
+ * stable Bukkit API since well before 1.18, so it is called
  * directly and is NOT routed through an adapter -- adding a layer
  * of indirection for things that do not actually vary per version
  * would just be ceremony.</p>

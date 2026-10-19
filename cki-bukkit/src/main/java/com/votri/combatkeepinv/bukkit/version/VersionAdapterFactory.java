@@ -84,29 +84,27 @@ public final class VersionAdapterFactory {
             return new Era1_20PlusAdapter(logger);
         }
 
-        
-        
-
         if (minor == 18 || minor == 19) {
             return new Era1_18To1_19Adapter(logger);
         }
 
-        if (minor < 17) {
+        if (minor < 18) {
 
             /*
-             * plugin.yml's api-version: '1.17' should already
+             * plugin.yml's api-version: '1.18' should already
              * stop Paper/Spigot from loading the plugin at all
-             * on an older server. This branch only exists in
-             * case that check is ever bypassed (e.g. a fork that
-             * ignores api-version) -- fail soft rather than NPE
-             * somewhere unrelated later.
+             * on an older server (1.17.x included -- there is no
+             * dedicated adapter for it any more). This branch
+             * only exists in case that check is ever bypassed
+             * (e.g. a fork that ignores api-version) -- fail soft
+             * rather than NPE somewhere unrelated later.
              */
             logger.severe(
                     "Detected Minecraft "
                             + major
                             + "."
                             + minor
-                            + ", which is older than the 1.17 "
+                            + ", which is older than the 1.18 "
                             + "minimum this build supports. "
                             + "Using the 1.18.x adapter as a "
                             + "best-effort fallback; expect "
@@ -114,13 +112,13 @@ public final class VersionAdapterFactory {
                             + "use a build targeting your "
                             + "version instead."
             );
-        }
 
-            
+            return new Era1_18To1_19Adapter(logger);
+        }
 
         /*
          * 1.20.x, 1.21.x, and anything newer/unrecognized above
-         * 1.17 share the same adapter -- nothing this plugin
+         * 1.19 share the same adapter -- nothing this plugin
          * touches has changed across that range.
          */
         return new Era1_20PlusAdapter(logger);
