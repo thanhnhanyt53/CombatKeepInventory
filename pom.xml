@@ -19,16 +19,19 @@
 
     <properties>
         <!--
-          16 is the lowest Java release that still accepts every
+          17 is the lowest Java release that still accepts every
           language feature already used across the modules
           (records, pattern-matching instanceof, switch
-          expressions: all stable since 16). It is also exactly
-          the minimum JRE Minecraft 1.17 itself requires, so the
-          compiled bytecode loads on 1.17 through 1.21.x/26.x JVMs
-          alike (newer JVMs always run older bytecode fine; the
-          reverse is what breaks). Do not raise this without
-          checking whether newer-only syntax or java.* API has
-          been introduced since.
+          expressions: all stable since 16, so 17 has them too).
+          It is also exactly the minimum JRE Minecraft 1.18
+          itself requires, matching plugin.yml's api-version
+          floor of '1.18' below, so the compiled bytecode loads
+          on 1.18 through 1.21.x/26.x JVMs alike (newer JVMs
+          always run older bytecode fine; the reverse is what
+          breaks). Do not raise this without checking whether
+          newer-only syntax or java.* API has been introduced
+          since, and keep this in sync with plugin.yml's
+          api-version and VersionAdapterFactory's floor.
         -->
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
