@@ -6,6 +6,7 @@ import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
 import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.command.CombatCommand;
 import com.votri.combatkeepinv.bukkit.debug.DebugManager;
+import org.bstats.bukkit.Metrics;
 import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 import com.votri.combatkeepinv.bukkit.version.VersionAdapter;
 import com.votri.combatkeepinv.bukkit.version.VersionAdapterFactory;
