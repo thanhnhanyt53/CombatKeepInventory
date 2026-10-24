@@ -82,8 +82,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     @Override
     public void onEnable() {
 
-        /*
-         * ==========================================================
+        
         int pluginId = 34903; // Thay bằng ID thật
         new Metrics(this, pluginId);
          
