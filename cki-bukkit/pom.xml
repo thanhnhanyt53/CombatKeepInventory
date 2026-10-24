@@ -68,6 +68,12 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                <relocation>
+                    <pattern>org.bstats</pattern>
+                    <shadedPattern>
+        com.votri.combatkeepinv.libs.bstats
+            </shadedPattern>
+                </relocation>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                         </configuration>
                     </execution>
