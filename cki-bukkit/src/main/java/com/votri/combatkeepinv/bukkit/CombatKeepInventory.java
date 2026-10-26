@@ -41,6 +41,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.bstats.bukkit.Metrics;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,7 +56,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public static final String PLUGIN_VERSION =
             "1.2.6-beta";
 
-    private static final int CONFIG_VERSION = 4;
+    private static final int CONFIG_VERSION = 5;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -91,6 +92,9 @@ public final class CombatKeepInventory extends JavaPlugin {
          * CONFIGURATION
          * ==========================================================
          */
+
+        int pluginId = 34903; // Thay bằng ID thật
+        new Metrics(this, pluginId);
 
         migrateConfigIfRequired();
         saveDefaultConfig();
