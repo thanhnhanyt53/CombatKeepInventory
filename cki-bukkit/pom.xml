@@ -62,18 +62,18 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
-                    <relocation>
-                        <pattern>org.bstats</pattern>
-                        <shadedPattern>
-        com.votri.combatkeepinv.libs.bstats
-                        </shadedPattern>
-                    </relocation>
                     <execution>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <relocations> <!-- Phải có chữ 's' ở đây -->
+                                <relocation>
+                                    <pattern>org.bstats</pattern>
+                                    <shadedPattern>com.votri.cki.libs.bstats</shadedPattern>
+                                </relocation>
+                            </relocations>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                         </configuration>
                     </execution>
