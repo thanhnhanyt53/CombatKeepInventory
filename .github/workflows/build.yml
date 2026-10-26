@@ -9,17 +9,27 @@ on:
 
 jobs:
   build:
+    name: Build and test (Java ${{ matrix.java }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # 17 is the minimum (Minecraft 1.18+); 21 covers 1.20.5+ and
+        # 26.x servers. The bytecode is built for 17 either way, so
+        # this checks the plugin still builds and its tests pass on
+        # both runtimes.
+        java: ['17', '21']
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: ${{ matrix.java }}
           cache: maven
 
       - name: Verify Java
@@ -36,9 +46,9 @@ jobs:
         run: |
           mvn -B validate
 
-      - name: Build
+      - name: Build and run unit tests
         run: |
-          mvn -B clean package -U
+          mvn -B clean verify -U
 
       - name: Show artifacts
         run: |
@@ -49,7 +59,17 @@ jobs:
             -print \
             | sort
 
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-java-${{ matrix.java }}
+          path: |
+            **/target/surefire-reports/*.txt
+          if-no-files-found: ignore
+
       - name: Upload artifacts
+        if: matrix.java == '17'
         uses: actions/upload-artifact@v4
         with:
           name: CombatKeepInventory
@@ -57,4 +77,3 @@ jobs:
             cki-bukkit/target/*.jar
             cki-velocity/target/*.jar
           if-no-files-found: error
-            
