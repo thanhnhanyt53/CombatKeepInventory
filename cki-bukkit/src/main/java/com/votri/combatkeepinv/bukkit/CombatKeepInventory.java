@@ -5,8 +5,9 @@ import com.votri.combatkeepinv.bukkit.bridge.CombatStateBridge;
 import com.votri.combatkeepinv.bukkit.combat.BukkitCombatService;
 import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.command.CombatCommand;
+import com.votri.combatkeepinv.bukkit.config.ConfigValidator;
+import com.votri.combatkeepinv.bukkit.config.ReloadResult;
 import com.votri.combatkeepinv.bukkit.debug.DebugManager;
-import org.bstats.bukkit.Metrics;
 import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 import com.votri.combatkeepinv.bukkit.version.VersionAdapter;
 import com.votri.combatkeepinv.bukkit.version.VersionAdapterFactory;
@@ -30,6 +31,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -51,7 +53,7 @@ import java.util.Locale;
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.2.5";
+            "1.2.6-beta";
 
     private static final int CONFIG_VERSION = 4;
 
@@ -77,23 +79,34 @@ public final class CombatKeepInventory extends JavaPlugin {
     private FileConfiguration messages;
 
     private String selectedPlatform;
+    private EventPriority registeredListenerPriority;
 
     private BukkitTask combatCleanupTask;
 
     @Override
     public void onEnable() {
 
-        
-        int pluginId = 34903; // Thay bằng ID thật
-        new Metrics(this, pluginId);
-         
-
-         /* CONFIGURATION
+        /*
+         * ==========================================================
+         * CONFIGURATION
          * ==========================================================
          */
 
         migrateConfigIfRequired();
         saveDefaultConfig();
+
+        /*
+         * Report unusable/suspicious values up front. At startup
+         * there is no previous configuration to fall back to, so
+         * invalid values are not rejected here: the plugin's own
+         * parsers use their built-in defaults for them, and this
+         * log is what tells the admin that happened.
+         */
+        logConfigIssues(
+                ConfigValidator.validate(
+                        getConfig()
+                )
+        );
 
         /*
          * ==========================================================
@@ -632,6 +645,9 @@ public final class CombatKeepInventory extends JavaPlugin {
 
         EventPriority priority =
                 getListenerPriority();
+
+        registeredListenerPriority =
+                priority;
 
         EventExecutor damageExecutor =
                 (registeredListener, event) -> {
@@ -1214,31 +1230,177 @@ public final class CombatKeepInventory extends JavaPlugin {
      * ==========================================================
      */
 
-    public void reloadPlugin() {
+    /**
+     * Reloads config.yml and message.yml without ever leaving the
+     * plugin half-configured.
+     *
+     * <ol>
+     *   <li>The file on disk is parsed into a separate
+     *       configuration object first. If it is not valid YAML,
+     *       nothing is touched.</li>
+     *   <li>That candidate is validated. Any ERROR rejects the
+     *       reload and the running configuration stays active;
+     *       WARNINGs are logged and applied.</li>
+     *   <li>Only then is the new configuration applied. If
+     *       rebuilding the components still fails, the previous
+     *       combat service is put back.</li>
+     * </ol>
+     *
+     * Active CombatTags are kept across a reload.
+     */
+    public ReloadResult reloadPlugin() {
 
-        reloadConfig();
+        File configFile =
+                new File(
+                        getDataFolder(),
+                        "config.yml"
+                );
 
-        loadMessages();
+        YamlConfiguration candidate =
+                new YamlConfiguration();
 
-        loadPlatformSelection();
+        try {
 
-        if (!checkPlatform()) {
+            candidate.load(configFile);
 
-            getLogger().warning(
-                    "Configured platform mode does not "
-                            + "match the detected platform."
+        } catch (IOException
+                 | InvalidConfigurationException exception) {
+
+            getLogger().severe(
+                    "Reload rejected: config.yml could not be "
+                            + "read ("
+                            + exception.getMessage()
+                            + "). The previous configuration "
+                            + "stays active."
+            );
+
+            return new ReloadResult(
+                    false,
+                    List.of(
+                            new ConfigValidator.Issue(
+                                    ConfigValidator.Severity.ERROR,
+                                    "config.yml",
+                                    "not valid YAML: "
+                                            + exception.getMessage()
+                            )
+                    ),
+                    List.of()
             );
         }
 
-        initializeComponents();
+        List<ConfigValidator.Issue> issues =
+                ConfigValidator.validate(candidate);
 
-        /*
-         * CombatManager có thể thay đổi session manager
-         * khi reload duration.
-         *
-         * Vì vậy phải rebuild các API facade.
-         */
-        initializeCoreAPIFacades();
+        logConfigIssues(issues);
+
+        if (ConfigValidator.hasErrors(issues)) {
+
+            getLogger().severe(
+                    "Reload rejected: fix the errors above and "
+                            + "reload again. The previous "
+                            + "configuration stays active."
+            );
+
+            return new ReloadResult(
+                    false,
+                    issues,
+                    List.of()
+            );
+        }
+
+        List<String> notes =
+                new ArrayList<>();
+
+        String newPriority =
+                candidate.getString(
+                        "listener-priority",
+                        "HIGHEST"
+                );
+
+        if (registeredListenerPriority != null
+                && newPriority != null
+                && !newPriority.trim().equalsIgnoreCase(
+                registeredListenerPriority.name()
+        )) {
+
+            notes.add(
+                    "listener-priority is only read when the "
+                            + "plugin starts: the listeners keep "
+                            + registeredListenerPriority
+                            + " until the server is restarted."
+            );
+        }
+
+        String newMode =
+                candidate.getString(
+                        "platform.mode",
+                        "auto"
+                );
+
+        if (newMode != null
+                && selectedPlatform != null
+                && !newMode.trim().equalsIgnoreCase(
+                selectedPlatform
+        )) {
+
+            notes.add(
+                    "platform.mode changed; the detected "
+                            + "platform is only checked at "
+                            + "startup."
+            );
+        }
+
+        BukkitCombatService previousService =
+                combatService;
+
+        try {
+
+            reloadConfig();
+
+            loadMessages();
+
+            loadPlatformSelection();
+
+            if (!checkPlatform()) {
+
+                getLogger().warning(
+                        "Configured platform mode does not "
+                                + "match the detected platform."
+                );
+            }
+
+            initializeComponents();
+
+            /*
+             * CombatManager may replace its session manager when
+             * the duration changes, so the API facades have to be
+             * rebuilt too.
+             */
+            initializeCoreAPIFacades();
+
+        } catch (RuntimeException exception) {
+
+            getLogger().severe(
+                    "Reload failed while applying the new "
+                            + "configuration: "
+                            + exception);
+
+            if (previousService != null) {
+                combatService = previousService;
+            }
+
+            notes.add(
+                    "Applying the configuration failed; the "
+                            + "previous combat service was "
+                            + "restored. See the console."
+            );
+
+            return new ReloadResult(
+                    false,
+                    issues,
+                    notes
+            );
+        }
 
         if (pvpManagerDetector != null) {
             pvpManagerDetector.logWarningIfDetected();
@@ -1259,10 +1421,47 @@ public final class CombatKeepInventory extends JavaPlugin {
                         + " seconds"
         );
 
-        getLogger().info(
-                "Listener priority configured as "
-                        + getListenerPriority()
+        for (String note : notes) {
+            getLogger().warning(note);
+        }
+
+        return new ReloadResult(
+                true,
+                issues,
+                notes
         );
+    }
+
+    /**
+     * Logs every validator finding: ERRORs as severe, WARNINGs as
+     * warnings.
+     */
+    private void logConfigIssues(
+            List<ConfigValidator.Issue> issues
+    ) {
+
+        for (ConfigValidator.Issue issue : issues) {
+
+            if (issue.severity()
+                    == ConfigValidator.Severity.ERROR) {
+
+                getLogger().severe(
+                        "config.yml "
+                                + issue.path()
+                                + ": "
+                                + issue.message()
+                );
+
+            } else {
+
+                getLogger().warning(
+                        "config.yml "
+                                + issue.path()
+                                + ": "
+                                + issue.message()
+                );
+            }
+        }
     }
 
     /*
