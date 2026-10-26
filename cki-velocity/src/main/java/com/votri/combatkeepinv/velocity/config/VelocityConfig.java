@@ -392,6 +392,40 @@ public final class VelocityConfig {
         );
     }
 
+    /**
+     * A mirrored tag with this much time (or less) left is treated
+     * as already expired for punishment purposes. Covers the
+     * backend's once-per-second expiry sweep, network latency and
+     * small clock differences between backend and proxy. Negative
+     * values are clamped to 0 (disabled).
+     */
+    public long getPunishmentGraceMillis() {
+
+        return Math.max(
+                0L,
+                getLong(
+                        "conditions.expiry-grace-millis",
+                        1500L
+                )
+        );
+    }
+
+    /**
+     * Minimum gap between two punishments of the same player, so a
+     * server switch immediately followed by a quit is not punished
+     * twice for one fight. Negative values are clamped to 0.
+     */
+    public long getPunishmentCooldownMillis() {
+
+        return Math.max(
+                0L,
+                getLong(
+                        "punishment.cooldown-seconds",
+                        10L
+                )
+        ) * 1000L;
+    }
+
     /*
      * ==========================================================
      * API
