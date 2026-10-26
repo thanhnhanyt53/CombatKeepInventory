@@ -7,6 +7,7 @@ import com.votri.combatkeepinv.core.api.CombatResult;
 import com.votri.combatkeepinv.core.damage.DamageSource;
 import com.votri.combatkeepinv.core.death.DeathDecision;
 import com.votri.combatkeepinv.core.inventory.InventoryPolicy;
+import com.votri.combatkeepinv.core.inventory.PartialInventoryPlanner;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
@@ -21,6 +22,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
@@ -584,6 +586,14 @@ public final class CombatListener implements Listener {
                 event.getEntity();
 
         InventoryPolicy policy = decision.getInventoryPolicy();
+
+        plugin.getDebugManager().recordDeath(
+                victim.getUniqueId(),
+                decision
+        );
+
+        debugDecision(victim, decision);
+
         switch (policy.getAction()) {
             case KEEP -> {
                 handleKeepInventory(
@@ -721,17 +731,14 @@ public final class CombatListener implements Listener {
         event.setKeepInventory(false);
 
         /*
-         * keepExperience controls whether XP orbs drop on the
-         * ground; keepLevels separately controls whether the
-         * player's level/XP progress survives respawn. Only the
-         * setKeepLevel() source changes here (now keepLevels
-         * instead of keepExperience) -- the pre-existing
-         * setDroppedExp() behaviour per branch is left exactly
-         * as it was to avoid guessing at unrelated semantics.
+         * Same semantic as handleKeepInventory() and
+         * handlePartialInventory(): keepExperience=true means
+         * nothing was lost, so no orbs spawn; keepLevels
+         * separately decides whether the level survives respawn.
          */
         event.setKeepLevel(keepLevels);
 
-        if (!keepExperience) {
+        if (keepExperience) {
             event.setDroppedExp(0);
         }
     }
@@ -755,53 +762,103 @@ public final class CombatListener implements Listener {
         event.getDrops().clear();
 
         /*
-         * Inventory is fully kept here, so no XP orbs are ever
-         * spawned regardless of keepExperience -- matches the
-         * pre-existing behaviour of this method. keepLevels is
-         * now applied from the policy instead of being tied to
-         * keepExperience.
+         * keepExperience=true means "XP is preserved, nothing
+         * was lost" -> no orbs spawn. keepExperience=false means
+         * XP is lost as normal -> Bukkit's natural drop amount is
+         * left untouched. This must match handleDropInventory()
+         * and handlePartialInventory() exactly; previously this
+         * method always zeroed droppedExp regardless of
+         * keepExperience while handleDropInventory() did the
+         * opposite (dropped orbs when keepExperience=true), so the
+         * same flag meant two contradictory things depending on
+         * which policy action fired.
          */
         event.setKeepLevel(keepLevels);
-        event.setDroppedExp(0);
+
+        if (keepExperience) {
+            event.setDroppedExp(0);
+        }
     }
 
+    /**
+     * Applies a PARTIAL policy as one transaction.
+     *
+     * <p>The whole result is computed first by
+     * {@link PartialInventoryPlanner} from copies of the inventory
+     * arrays, checked, and only then written to the player and the
+     * event. If anything goes wrong at any point the player's
+     * original inventory is restored and everything is kept
+     * ({@code keepInventory=true}, no drops): the worst case is a
+     * player keeping more than the policy says, never an item that
+     * vanishes or exists twice.</p>
+     */
     private void handlePartialInventory(
             PlayerDeathEvent event,
             InventoryPolicy policy
     ) {
         Player player = event.getEntity();
-        event.getDrops().clear();
-        event.setKeepInventory(true);
+        PlayerInventory inventory = player.getInventory();
 
-        ItemStack[] storage = player.getInventory().getStorageContents();
-        for (int index = 0; index < storage.length; index++) {
-            ItemStack item = storage[index];
-            if (item == null || item.getType().isAir()) {
-                continue;
+        ItemStack[] originalStorage = inventory.getStorageContents();
+        ItemStack[] originalArmor = inventory.getArmorContents();
+        ItemStack[] originalExtra = inventory.getExtraContents();
+
+        try {
+            PartialInventoryPlanner.Plan<ItemStack> plan =
+                    PartialInventoryPlanner.plan(
+                            originalStorage,
+                            originalArmor,
+                            originalExtra,
+                            policy,
+                            item -> item == null
+                                    || item.getType().isAir(),
+                            ItemStack::clone
+                    );
+
+            int before =
+                    countItems(originalStorage)
+                            + countItems(originalArmor)
+                            + countItems(originalExtra);
+
+            int after =
+                    countItems(plan.storage())
+                            + countItems(plan.armor())
+                            + countItems(plan.extra())
+                            + plan.dropCount();
+
+            if (before != after) {
+                throw new IllegalStateException(
+                        "partial plan changed the item count ("
+                                + before
+                                + " before, "
+                                + after
+                                + " after)"
+                );
             }
 
-            boolean isHotbar = index < 9;
-            boolean keep = isHotbar
-                    ? policy.keepHotbar()
-                    : policy.keepMainInventory();
+            inventory.setStorageContents(plan.storage());
+            inventory.setArmorContents(plan.armor());
+            inventory.setExtraContents(plan.extra());
 
-            if (!keep) {
-                event.getDrops().add(item.clone());
-                storage[index] = null;
-            }
-        }
-        player.getInventory().setStorageContents(storage);
+            event.getDrops().clear();
+            event.getDrops().addAll(plan.drops());
+            event.setKeepInventory(true);
 
-        if (!policy.keepArmor()) {
-            ItemStack[] armor = player.getInventory().getArmorContents();
-            addDrops(event, armor);
-            player.getInventory().setArmorContents(new ItemStack[armor.length]);
-        }
+        } catch (RuntimeException exception) {
 
-        if (!policy.keepOffhand()) {
-            ItemStack[] extra = player.getInventory().getExtraContents();
-            addDrops(event, extra);
-            player.getInventory().setExtraContents(new ItemStack[extra.length]);
+            plugin.getLogger().severe(
+                    "PARTIAL inventory handling failed for "
+                            + player.getName()
+                            + "; restoring the original inventory "
+                            + "and keeping everything instead: "
+                            + exception);
+
+            inventory.setStorageContents(originalStorage);
+            inventory.setArmorContents(originalArmor);
+            inventory.setExtraContents(originalExtra);
+
+            event.getDrops().clear();
+            event.setKeepInventory(true);
         }
 
         event.setKeepLevel(policy.keepLevels());
@@ -809,6 +866,22 @@ public final class CombatListener implements Listener {
         if (policy.keepExperience()) {
             event.setDroppedExp(0);
         }
+    }
+
+    private static int countItems(ItemStack[] items) {
+        if (items == null) {
+            return 0;
+        }
+
+        int count = 0;
+
+        for (ItemStack item : items) {
+            if (item != null && !item.getType().isAir()) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private void addDrops(
@@ -1011,6 +1084,48 @@ public final class CombatListener implements Listener {
         return (
                 millis + 999L
         ) / 1000L;
+    }
+
+    /**
+     * One line explaining the decision: why the player died, which
+     * rule won, at what priority and what it does. Goes to the
+     * console when debug.death is on and to every /cki debug watcher.
+     */
+    private void debugDecision(
+            Player victim,
+            DeathDecision decision
+    ) {
+        if (!plugin.isDebugDeath()
+                && !plugin.getDebugManager().hasWatchers()) {
+            return;
+        }
+
+        InventoryPolicy policy =
+                decision.getInventoryPolicy();
+
+        String message =
+                "[CombatDeath] "
+                        + victim.getName()
+                        + " | reason="
+                        + decision.getReason()
+                        + " | rule="
+                        + decision.getRuleId()
+                        + " | priority="
+                        + (decision.getPriority() == Integer.MIN_VALUE
+                                ? "n/a"
+                                : String.valueOf(decision.getPriority()))
+                        + " | action="
+                        + policy.getAction()
+                        + " | keepExp="
+                        + policy.keepExperience()
+                        + " | keepLevels="
+                        + policy.keepLevels();
+
+        if (plugin.isDebugDeath()) {
+            plugin.getLogger().info(message);
+        }
+
+        plugin.getDebugManager().broadcast(message);
     }
 
     private void debugDeath(
