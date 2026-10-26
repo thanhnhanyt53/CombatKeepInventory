@@ -138,6 +138,28 @@ public final class WorldGuardHook {
                 || victimAllowed;
     }
 
+    /**
+     * Resolves whether PvP is allowed at a location, layering
+     * three independent checks (first match that denies wins):
+     *
+     * <ol>
+     *   <li>{@code worldguard.excluded-regions}: a CKI-specific
+     *       always-deny list, regardless of WorldGuard's own PVP
+     *       flag. Useful for marking a region as a CombatKeepInventory
+     *       safe zone without touching the region's real PVP flag.</li>
+     *   <li>{@code worldguard.restrict-to-enabled-regions}: an
+     *       opt-in CKI-specific allowlist: if turned on, a location
+     *       not covered by at least one region in
+     *       {@code worldguard.enabled-regions} is denied outright.</li>
+     *   <li>WorldGuard's own {@code PVP} region flag, queried
+     *       through {@code RegionQuery#testState(...)}. This is
+     *       WorldGuard's real, authoritative mechanism, and it
+     *       already resolves overlapping regions correctly via its
+     *       own priority/parent-child engine. CKI does not need
+     *       (and previously incorrectly tried) to reimplement that
+     *       resolution itself.</li>
+     * </ol>
+     */
     private boolean regionAllows(
             Location location
     ) {
@@ -155,15 +177,6 @@ public final class WorldGuardHook {
                             location
                     );
 
-            if (regions.isEmpty()) {
-
-                return !plugin.getConfig()
-                        .getBoolean(
-                                "worldguard.restrict-to-enabled-regions",
-                                false
-                        );
-            }
-
             Set<String> excluded =
                     new HashSet<>(
                             plugin.getConfig()
@@ -172,18 +185,6 @@ public final class WorldGuardHook {
                                     )
                     );
 
-            boolean restrict =
-                    plugin.getConfig().getBoolean(
-                            "worldguard.restrict-to-enabled-regions",
-                            false
-                    );
-
-            Collection<String> enabledRegions =
-                    plugin.getConfig()
-                            .getStringList(
-                                    "worldguard.enabled-regions"
-                            );
-
             for (String regionId : regions) {
 
                 if (containsIgnoreCase(
@@ -191,26 +192,73 @@ public final class WorldGuardHook {
                         regionId
                 )) {
 
-                    continue;
-                }
+                    debug(
+                            "Denied: region '"
+                                    + regionId
+                                    + "' is in worldguard.excluded-regions."
+                    );
 
-                if (restrict) {
+                    return false;
+                }
+            }
+
+            boolean restrict =
+                    plugin.getConfig().getBoolean(
+                            "worldguard.restrict-to-enabled-regions",
+                            false
+                    );
+
+            if (restrict) {
+
+                Collection<String> enabledRegions =
+                        plugin.getConfig()
+                                .getStringList(
+                                        "worldguard.enabled-regions"
+                                );
+
+                boolean matched = false;
+
+                for (String regionId : regions) {
 
                     if (containsIgnoreCase(
                             enabledRegions,
                             regionId
                     )) {
 
-                        return true;
+                        matched = true;
+                        break;
                     }
-
-                    continue;
                 }
 
-                return true;
+                if (!matched) {
+
+                    debug(
+                            "Denied: restrict-to-enabled-regions is "
+                                    + "on and no covering region is "
+                                    + "in worldguard.enabled-regions."
+                    );
+
+                    return false;
+                }
             }
 
-            return !restrict;
+            Boolean pvpFlag =
+                    queryPvpFlag(
+                            location
+                    );
+
+            if (pvpFlag != null
+                    && !pvpFlag) {
+
+                debug(
+                        "Denied: WorldGuard PVP flag resolves to "
+                                + "deny at this location."
+                );
+
+                return false;
+            }
+
+            return true;
 
         } catch (Throwable throwable) {
 
@@ -225,6 +273,111 @@ public final class WorldGuardHook {
                     true
             );
         }
+    }
+
+    /**
+     * Queries WorldGuard's real, native {@code PVP} StateFlag at a
+     * location via {@code RegionQuery#testState(...)}, which
+     * resolves overlapping/nested regions by WorldGuard's own
+     * priority and parent-inheritance rules: the same mechanism
+     * WorldGuard itself uses to decide whether to cancel damage
+     * events, so this stays consistent with what players actually
+     * experience.
+     *
+     * @return true/false for an explicit resolution, or null if
+     *         WorldGuard is not initialized (treated as
+     *         "no opinion" by the caller, i.e. not a deny)
+     */
+    private Boolean queryPvpFlag(
+            Location location
+    ) throws Exception {
+
+        if (worldGuard == null) {
+            return null;
+        }
+
+        Object platform =
+                worldGuard.getClass()
+                        .getMethod("getPlatform")
+                        .invoke(worldGuard);
+
+        Object container =
+                platform.getClass()
+                        .getMethod("getRegionContainer")
+                        .invoke(platform);
+
+        Object query =
+                container.getClass()
+                        .getMethod("createQuery")
+                        .invoke(container);
+
+        Class<?> adapterClass =
+                Class.forName(
+                        "com.sk89q.worldedit.bukkit.BukkitAdapter"
+                );
+
+        Object weLocation =
+                adapterClass.getMethod(
+                        "adapt",
+                        Location.class
+                ).invoke(
+                        null,
+                        location
+                );
+
+        Class<?> weLocationClass =
+                Class.forName(
+                        "com.sk89q.worldedit.util.Location"
+                );
+
+        Class<?> regionAssociableClass =
+                Class.forName(
+                        "com.sk89q.worldguard.protection.association.RegionAssociable"
+                );
+
+        Class<?> stateFlagClass =
+                Class.forName(
+                        "com.sk89q.worldguard.protection.flags.StateFlag"
+                );
+
+        Class<?> flagsClass =
+                Class.forName(
+                        "com.sk89q.worldguard.protection.flags.Flags"
+                );
+
+        Object pvpFlag =
+                flagsClass.getField("PVP")
+                        .get(null);
+
+        Object stateFlagArray =
+                java.lang.reflect.Array.newInstance(
+                        stateFlagClass,
+                        1
+                );
+
+        java.lang.reflect.Array.set(
+                stateFlagArray,
+                0,
+                pvpFlag
+        );
+
+        Method testState =
+                query.getClass().getMethod(
+                        "testState",
+                        weLocationClass,
+                        regionAssociableClass,
+                        stateFlagArray.getClass()
+                );
+
+        Object result =
+                testState.invoke(
+                        query,
+                        weLocation,
+                        null,
+                        stateFlagArray
+                );
+
+        return (Boolean) result;
     }
 
     private Set<String> getRegionNames(
