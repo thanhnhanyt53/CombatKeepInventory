@@ -37,14 +37,12 @@ combat:
 
 death:
 
-  # When a player dies without an active CombatTag
-  # and the final death is caused by another player,
-  # their inventory is dropped.
+  # NOT currently read by any code -- superseded by the
+  # reason-specific inventory.policies block below (player-kill /
+  # pve-death policies). Left here only so old configs that still
+  # have these lines do not fail to parse; they have no effect.
+  # Edit inventory.policies.player-kill / pve-death instead.
   pvp-kill-drops: true
-
-  # When a player dies without an active CombatTag
-  # and the death is caused by mobs/environment,
-  # keep their inventory.
   pve-keeps-inventory: true
 
   # Experience behavior is configured by the reason-specific policies below.
@@ -134,6 +132,51 @@ worlds:
 
 
 # ============================================================
+# WorldGuard
+# ============================================================
+# Requires the WorldGuard plugin (soft dependency). A location
+# only counts as "PvP allowed" if ALL of these pass, checked in
+# this order:
+#
+#   1. It is not covered by a region in excluded-regions.
+#   2. If restrict-to-enabled-regions is true, it IS covered by
+#      a region in enabled-regions.
+#   3. WorldGuard's own native "pvp" region flag does not resolve
+#      to deny there. This is WorldGuard's real mechanism, so
+#      "/rg flag <region> pvp deny" works as you would expect,
+#      and overlapping/nested regions are resolved by WorldGuard's
+#      own priority and parent-inheritance rules -- CKI does not
+#      reimplement that.
+#
+# If any check denies, the hit does NOT start a CombatTag.
+
+worldguard:
+
+  # Master switch for the whole WorldGuard integration.
+  enabled: true
+
+  # What to do when WorldGuard is missing/unloaded, or a region
+  # lookup throws: true = allow PvP/combat tagging (fail open),
+  # false = deny it (fail closed).
+  fail-open: true
+
+  # true  = BOTH the attacker and the victim must be standing
+  #         somewhere that allows PvP.
+  # false = it is enough for EITHER one to be.
+  require-both-players-in-region: true
+
+  # Regions where CKI combat tagging is always denied, even if
+  # WorldGuard's own pvp flag would allow it there.
+  excluded-regions: []
+
+  # Only used when restrict-to-enabled-regions is true.
+  enabled-regions: []
+
+  # true = combat tagging ONLY happens inside enabled-regions.
+  restrict-to-enabled-regions: false
+
+
+# ============================================================
 # Listener
 # ============================================================
 
@@ -169,3 +212,7 @@ debug:
 
   # Proxy bridge information.
   bridge: false
+
+  # WorldGuard region/PVP-flag decisions (why a hit was allowed
+  # or denied).
+  worldguard: false
