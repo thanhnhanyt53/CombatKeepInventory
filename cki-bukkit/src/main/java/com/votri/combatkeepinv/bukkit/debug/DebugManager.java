@@ -1,10 +1,17 @@
 package com.votri.combatkeepinv.bukkit.debug;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
+import com.votri.combatkeepinv.core.death.DeathDecision;
+import com.votri.combatkeepinv.core.death.DeathReason;
+import com.votri.combatkeepinv.core.inventory.InventoryAction;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,8 +35,48 @@ public final class DebugManager {
 
     private final CombatKeepInventory plugin;
 
+    /** How many players' last death decisions are remembered. */
+    static final int MAX_DEATH_RECORDS = 256;
+
+    /**
+     * What the plugin decided the last time a player died, so
+     * {@code /cki debug <player>} can explain it afterwards
+     * without anyone having to catch the live feed.
+     */
+    public record DeathRecord(
+            long timestamp,
+            DeathReason reason,
+            String ruleId,
+            int priority,
+            InventoryAction action,
+            boolean keepExperience,
+            boolean keepLevels
+    ) {
+
+        /** True when a priority actually took part in the decision. */
+        public boolean hasPriority() {
+            return priority != Integer.MIN_VALUE;
+        }
+    }
+
     private final Set<UUID> watchers =
             ConcurrentHashMap.newKeySet();
+
+    private final Map<UUID, DeathRecord> lastDeaths =
+            Collections.synchronizedMap(
+                    new LinkedHashMap<UUID, DeathRecord>(
+                            16,
+                            0.75f,
+                            false
+                    ) {
+                        @Override
+                        protected boolean removeEldestEntry(
+                                Map.Entry<UUID, DeathRecord> eldest
+                        ) {
+                            return size() > MAX_DEATH_RECORDS;
+                        }
+                    }
+            );
 
     public DebugManager(
             CombatKeepInventory plugin
@@ -114,7 +161,43 @@ public final class DebugManager {
      * Clears every watcher. Used on plugin disable so a reload
      * or shutdown does not leave stale state behind.
      */
+    /**
+     * Remembers the decision made for a player's death.
+     */
+    public void recordDeath(
+            UUID playerId,
+            DeathDecision decision
+    ) {
+
+        if (playerId == null
+                || decision == null) {
+            return;
+        }
+
+        lastDeaths.put(
+                playerId,
+                new DeathRecord(
+                        System.currentTimeMillis(),
+                        decision.getReason(),
+                        decision.getRuleId(),
+                        decision.getPriority(),
+                        decision.getInventoryPolicy().getAction(),
+                        decision.getInventoryPolicy().keepExperience(),
+                        decision.getInventoryPolicy().keepLevels()
+                )
+        );
+    }
+
+    public Optional<DeathRecord> getLastDeath(
+            UUID playerId
+    ) {
+        return Optional.ofNullable(
+                lastDeaths.get(playerId)
+        );
+    }
+
     public void clear() {
         watchers.clear();
+        lastDeaths.clear();
     }
 }
