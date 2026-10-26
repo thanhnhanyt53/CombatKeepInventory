@@ -146,19 +146,33 @@ public final class DefaultDeathService
         if (playerCaused && priority("player-kill", 300) > highest) {
             highest = priority("player-kill", 300);
             /*
-             * Look up the policy for the ACTUAL reason (PLAYER,
-             * PLAYER_PROJECTILE or PLAYER_EXPLOSION), not a
-             * hardcoded PLAYER key. createDeathPolicies() maps
-             * all three to the same "player-kill" policy object
-             * by default, which is why using DeathReason.PLAYER
-             * unconditionally looked correct -- but it silently
-             * ignores a reason-specific override (e.g. a
-             * different policy configured for PLAYER_EXPLOSION
-             * alone) the moment an admin sets one up.
+             * This branch is the "player-kill" rule, so it must
+             * always resolve to the player-kill policy.
+             *
+             * playerCaused can be true while the resolved reason is
+             * NOT one of the three PLAYER_* reasons (it also comes
+             * from context.wasPlayerCaused(), e.g. a player-caused
+             * kill that finally registers as VOID or ENTITY). Looking
+             * the policy up by that PvE reason would silently apply
+             * the pve-death policy while reporting ruleId
+             * "player-kill" at player-kill's priority -- so a
+             * "player-kill: KEEP" with the winning priority could
+             * come out as the PvE DROP policy. For a PLAYER_*
+             * reason use its own entry (allows a reason-specific
+             * override); otherwise use the PLAYER entry.
              */
-            policy = deathPolicies.getOrDefault(reason, defaultPolicy);
+            boolean playerReason =
+                    reason == DeathReason.PLAYER
+                            || reason == DeathReason.PLAYER_PROJECTILE
+                            || reason == DeathReason.PLAYER_EXPLOSION;
+
+            policy = deathPolicies.getOrDefault(
+                    playerReason ? reason : DeathReason.PLAYER,
+                    defaultPolicy
+            );
             ruleId = "player-kill";
         }
+
         if (pve && priority("pve-death", 200) > highest) {
             highest = priority("pve-death", 200);
             policy = deathPolicies.getOrDefault(reason, defaultPolicy);
@@ -182,7 +196,8 @@ public final class DefaultDeathService
                 keepInventory,
                 policy,
                 context.getDeathReason(),
-                ruleId
+                ruleId,
+                highest
         );
     }
 

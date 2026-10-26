@@ -13,6 +13,7 @@ public final class DefaultDeathDecision
     private final InventoryPolicy inventoryPolicy;
     private final DeathReason reason;
     private final String ruleId;
+    private final int priority;
 
     public DefaultDeathDecision(
             boolean keepInventory,
@@ -20,6 +21,23 @@ public final class DefaultDeathDecision
             DeathReason reason,
             String ruleId
     ) {
+        this(
+                keepInventory,
+                inventoryPolicy,
+                reason,
+                ruleId,
+                Integer.MIN_VALUE
+        );
+    }
+
+    public DefaultDeathDecision(
+            boolean keepInventory,
+            InventoryPolicy inventoryPolicy,
+            DeathReason reason,
+            String ruleId,
+            int priority
+    ) {
+        this.priority = priority;
         this.keepInventory = keepInventory;
         this.inventoryPolicy =
                 Objects.requireNonNull(inventoryPolicy);
@@ -56,5 +74,10 @@ public final class DefaultDeathDecision
     @Override
     public String getRuleId() {
         return ruleId;
+    }
+
+    @Override
+    public int getPriority() {
+        return priority;
     }
 }
