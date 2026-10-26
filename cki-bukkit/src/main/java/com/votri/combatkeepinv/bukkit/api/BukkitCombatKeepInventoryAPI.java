@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Bukkit adapter for the public CKI 1.2.5 core API.
+ * Bukkit adapter for the public CKI 1.2.6 core API.
  *
  * <p>The core contract deliberately does not own a global service
  * locator. The Bukkit adapter therefore provides the platform-level
