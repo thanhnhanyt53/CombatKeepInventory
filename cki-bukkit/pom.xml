@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.votri</groupId>
         <artifactId>CombatKeepInventory</artifactId>
-        <version>1.2.5</version>
+        <version>1.2.6-beta</version>
     </parent>
 
     <artifactId>cki-bukkit</artifactId>
@@ -32,11 +32,6 @@
             <version>${worldguard.version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>org.bstats</groupId>
-            <artifactId>bstats-bukkit</artifactId>
-            <version>3.0.2</version>
-         </dependency>
     </dependencies>
 
     <build>
@@ -68,12 +63,6 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                <relocation>
-                    <pattern>org.bstats</pattern>
-                    <shadedPattern>
-        com.votri.combatkeepinv.libs.bstats
-            </shadedPattern>
-                </relocation>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                         </configuration>
                     </execution>
