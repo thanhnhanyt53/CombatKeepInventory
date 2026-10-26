@@ -10,6 +10,7 @@ import com.votri.combatkeepinv.velocity.config.VelocityConfig;
 import com.votri.combatkeepinv.velocity.listener.VelocitySessionListener;
 import com.votri.combatkeepinv.velocity.platform.VelocityPlatformDetector;
 import com.votri.combatkeepinv.velocity.session.PlayerSessionManager;
+import com.votri.combatkeepinv.velocity.session.PunishmentGuard;
 import com.votri.combatkeepinv.velocity.session.SessionTransition;
 
 import com.velocitypowered.api.event.Subscribe;
@@ -33,7 +34,7 @@ import java.util.UUID;
 @Plugin(
         id = "combatkeepinventory",
         name = "CombatKeepInventory",
-        version = "1.2.5",
+        version = "1.2.6-beta",
         authors = {
                 "ThanhNhan"
         }
@@ -83,6 +84,9 @@ public final class CombatKeepInventoryVelocity {
     private final ProxyCombatStateManager combatStateManager;
 
     private final CombatPunishmentService punishmentService;
+
+    private final PunishmentGuard punishmentGuard =
+            new PunishmentGuard();
 
     /*
      * ==========================================================
@@ -327,7 +331,8 @@ public CombatKeepInventoryVelocity(
                         this::handleTransition,
                         logger,
                         config,
-                        () -> channelIdentifier
+                        () -> channelIdentifier,
+                        punishmentGuard
                 );
 
         proxy.getEventManager()
@@ -355,6 +360,12 @@ public CombatKeepInventoryVelocity(
     public void onProxyShutdown(
             ProxyShutdownEvent event
     ) {
+
+        /*
+         * Every player is about to be disconnected by the proxy
+         * itself; none of those quits are combat logging.
+         */
+        punishmentGuard.markShuttingDown();
 
         /*
          * ======================================================
@@ -706,9 +717,9 @@ public CombatKeepInventoryVelocity(
             return;
         }
 
-        if (!isPunishable(
-                transition.getPlayerId(),
-                config.requireActiveCombatOnServerSwitch()
+        if (!shouldPunish(
+                PunishmentGuard.Kind.SERVER_SWITCH,
+                transition.getPlayerId()
         )) {
             return;
         }
@@ -719,6 +730,12 @@ public CombatKeepInventoryVelocity(
                         config.getSwitchPunishmentCommands(),
                         "combat-logging via server switch"
                 );
+
+        if (executed) {
+            punishmentGuard.recordPunished(
+                    transition.getPlayerId()
+            );
+        }
 
         if (executed
                 && config.logPunishment()) {
@@ -745,9 +762,9 @@ public CombatKeepInventoryVelocity(
             return;
         }
 
-        if (!isPunishable(
-                transition.getPlayerId(),
-                config.requireActiveCombatOnClusterExit()
+        if (!shouldPunish(
+                PunishmentGuard.Kind.CLUSTER_EXIT,
+                transition.getPlayerId()
         )) {
             return;
         }
@@ -758,6 +775,12 @@ public CombatKeepInventoryVelocity(
                         config.getClusterExitPunishmentCommands(),
                         "combat-logging via cluster exit"
                 );
+
+        if (executed) {
+            punishmentGuard.recordPunished(
+                    transition.getPlayerId()
+            );
+        }
 
         if (executed
                 && config.logPunishment()) {
@@ -773,14 +796,16 @@ public CombatKeepInventoryVelocity(
     /**
      * Shared punishment gate for both transition types.
      *
-     * @param playerId           player being evaluated
-     * @param requireActiveCombat whether the caller's specific
-     *                            config section requires an
-     *                            active tag before punishing
+     * <p>A punishment is only ever justified while the player has a
+     * live, not-about-to-expire CombatTag. The legacy
+     * {@code require-combat-tag} / {@code require-active-combat}
+     * switches can no longer turn that off: with both set to false
+     * every player who merely switched server or quit would be
+     * punished, which is never what "combat logging" means.</p>
      */
-    private boolean isPunishable(
-            UUID playerId,
-            boolean requireActiveCombat
+    private boolean shouldPunish(
+            PunishmentGuard.Kind kind,
+            UUID playerId
     ) {
 
         if (playerId == null) {
@@ -792,13 +817,32 @@ public CombatKeepInventoryVelocity(
                         playerId
                 );
 
-        if (config.requireCombatTag()
-                && !inCombat) {
-            return false;
-        }
+        long remaining =
+                inCombat
+                        ? combatStateManager.getRemainingMillis(
+                                playerId
+                        )
+                        : 0L;
 
-        if (requireActiveCombat
-                && !inCombat) {
+        PunishmentGuard.Verdict verdict =
+                punishmentGuard.check(
+                        kind,
+                        playerId,
+                        inCombat,
+                        remaining,
+                        config.getPunishmentGraceMillis(),
+                        config.getPunishmentCooldownMillis()
+                );
+
+        if (verdict != PunishmentGuard.Verdict.ALLOW) {
+
+            logger.debug(
+                    "No punishment for {} ({}): {}",
+                    playerId,
+                    kind,
+                    verdict
+            );
+
             return false;
         }
 
@@ -808,6 +852,12 @@ public CombatKeepInventoryVelocity(
         if (bypassPermission != null
                 && !bypassPermission.isBlank()) {
 
+            /*
+             * Only meaningful for SERVER_SWITCH: by the time a
+             * DisconnectEvent fires the player is already gone from
+             * proxy.getPlayer(...), so the quit case is decided in
+             * VelocitySessionListener#onDisconnect instead.
+             */
             boolean bypassed =
                     proxy.getPlayer(playerId)
                             .map(player -> player.hasPermission(
