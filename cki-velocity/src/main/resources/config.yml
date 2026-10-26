@@ -151,6 +151,11 @@ punishment:
 
   enabled: true
 
+  # Minimum seconds between two punishments of the same player.
+  # Stops a server switch followed right away by a quit from being
+  # punished twice for the same fight. 0 disables.
+  cooldown-seconds: 10
+
   # ==========================================================
   # Server Switch Punishment
   # ==========================================================
@@ -202,6 +207,15 @@ conditions:
 
   # Do not punish if the synchronized state has expired.
   require-unexpired-tag: true
+
+  # A synchronized tag with this much time (or less) left is
+  # treated as already expired when deciding whether to punish.
+  # The backend only sweeps expired tags once per second and the
+  # backend/proxy clocks are never perfectly in sync, so without
+  # a margin a player who quits just as their tag runs out could
+  # be punished unfairly. Keep both machines' clocks on NTP.
+  # 0 disables the margin.
+  expiry-grace-millis: 1500
 
 
 # ============================================================
