@@ -1,6 +1,9 @@
 package com.votri.combatkeepinv.bukkit.command;
 
 import com.votri.combatkeepinv.bukkit.CombatKeepInventory;
+import com.votri.combatkeepinv.bukkit.config.ConfigValidator;
+import com.votri.combatkeepinv.bukkit.config.ReloadResult;
+import com.votri.combatkeepinv.bukkit.debug.DebugManager;
 import com.votri.combatkeepinv.core.api.CombatService;
 import com.votri.combatkeepinv.core.api.CombatTag;
 import com.votri.combatkeepinv.core.damage.DamageSource;
@@ -95,14 +98,53 @@ public final class CombatCommand
             return true;
         }
 
-        plugin.reloadPlugin();
+        ReloadResult result =
+                plugin.reloadPlugin();
 
-        sender.sendMessage(
-                plugin.getMessage(
-                        "command.reload.success",
-                        "&aCombatKeepInventory has been reloaded."
-                )
-        );
+        if (!result.applied()) {
+
+            sender.sendMessage(
+                    plugin.getMessage(
+                            "command.reload.failed",
+                            "&cReload rejected: the new configuration "
+                                    + "has errors. The previous "
+                                    + "configuration is still active."
+                    )
+            );
+
+        } else {
+
+            sender.sendMessage(
+                    plugin.getMessage(
+                            "command.reload.success",
+                            "&aCombatKeepInventory has been reloaded."
+                    )
+            );
+        }
+
+        for (ConfigValidator.Issue issue : result.issues()) {
+
+            sender.sendMessage(
+                    plugin.color(
+                            (issue.severity()
+                                    == ConfigValidator.Severity.ERROR
+                                    ? "&c[error] &f"
+                                    : "&e[warning] &f")
+                                    + issue.path()
+                                    + "&7: &f"
+                                    + issue.message()
+                    )
+            );
+        }
+
+        for (String note : result.notes()) {
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&e[note] &f" + note
+                    )
+            );
+        }
 
         return true;
     }
@@ -432,11 +474,116 @@ public final class CombatCommand
             );
         }
 
+        sendDeathSnapshot(sender, id);
+
         sender.sendMessage(
                 plugin.color(
                         "&8&m-----------------------------"
                 )
         );
+    }
+
+    /**
+     * Last death decision for the player: why they died, which rule
+     * won, its priority and what it did, plus the priorities
+     * currently configured so the winner can be checked against
+     * them.
+     */
+    private void sendDeathSnapshot(
+            CommandSender sender,
+            UUID id
+    ) {
+
+        Optional<DebugManager.DeathRecord> record =
+                plugin.getDebugManager().getLastDeath(id);
+
+        if (record.isEmpty()) {
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7Last death: &fnone recorded "
+                                    + "since the plugin started"
+                    )
+            );
+
+        } else {
+
+            DebugManager.DeathRecord death =
+                    record.get();
+
+            long secondsAgo =
+                    Math.max(
+                            0L,
+                            (System.currentTimeMillis()
+                                    - death.timestamp())
+                                    / 1000L
+                    );
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7Last death: &f"
+                                    + secondsAgo
+                                    + "s ago"
+                    )
+            );
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7  Cause: &f"
+                                    + death.reason()
+                    )
+            );
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7  Policy chosen: &f"
+                                    + death.ruleId()
+                                    + " &7-> &f"
+                                    + death.action()
+                    )
+            );
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7  Priority: &f"
+                                    + (death.hasPriority()
+                                    ? String.valueOf(death.priority())
+                                    : "n/a")
+                    )
+            );
+
+            sender.sendMessage(
+                    plugin.color(
+                            "&7  Keep exp/levels: &f"
+                                    + death.keepExperience()
+                                    + "&7/&f"
+                                    + death.keepLevels()
+                    )
+            );
+        }
+
+        sender.sendMessage(
+                plugin.color(
+                        "&7Configured priorities: &f"
+                                + describePriorities()
+                )
+        );
+    }
+
+    private String describePriorities() {
+
+        return "combat-death="
+                + plugin.getConfig().getInt(
+                "inventory.policies.combat-death.priority", 400)
+                + ", player-kill="
+                + plugin.getConfig().getInt(
+                "inventory.policies.player-kill.priority", 300)
+                + ", pve-death="
+                + plugin.getConfig().getInt(
+                "inventory.policies.pve-death.priority", 200)
+                + ", unknown="
+                + plugin.getConfig().getInt(
+                "inventory.policies.unknown.priority", 100);
     }
 
     private void sendUsage(
