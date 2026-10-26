@@ -3,11 +3,13 @@ package com.votri.combatkeepinv.velocity.listener;
 import com.votri.combatkeepinv.velocity.api.ProxyCombatStateManager;
 import com.votri.combatkeepinv.velocity.config.VelocityConfig;
 import com.votri.combatkeepinv.velocity.session.PlayerSessionManager;
+import com.votri.combatkeepinv.velocity.session.PunishmentGuard;
 import com.votri.combatkeepinv.velocity.session.SessionTransition;
 
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PluginMessageEvent;
+import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.ServerConnectedEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ServerConnection;
@@ -45,13 +47,16 @@ public final class VelocitySessionListener {
     private final Supplier<MinecraftChannelIdentifier>
             channelSupplier;
 
+    private final PunishmentGuard punishmentGuard;
+
     public VelocitySessionListener(
             PlayerSessionManager sessionManager,
             ProxyCombatStateManager combatStateManager,
             Consumer<SessionTransition> transitionConsumer,
             Logger logger,
             VelocityConfig config,
-            Supplier<MinecraftChannelIdentifier> channelSupplier
+            Supplier<MinecraftChannelIdentifier> channelSupplier,
+            PunishmentGuard punishmentGuard
     ) {
 
         this.sessionManager =
@@ -71,6 +76,9 @@ public final class VelocitySessionListener {
 
         this.channelSupplier =
                 channelSupplier;
+
+        this.punishmentGuard =
+                punishmentGuard;
     }
 
     /*
@@ -107,6 +115,22 @@ public final class VelocitySessionListener {
         );
     }
 
+    /**
+     * A backend kicked the player (shutdown, crash, plugin kick)
+     * and Velocity is about to redirect them somewhere else. The
+     * resulting server switch is not the player's own choice, so
+     * it must not count as combat logging.
+     */
+    @Subscribe
+    public void onKickedFromServer(
+            KickedFromServerEvent event
+    ) {
+
+        punishmentGuard.markInvoluntarySwitch(
+                event.getPlayer().getUniqueId()
+        );
+    }
+
     @Subscribe
     public void onDisconnect(
             DisconnectEvent event
@@ -119,6 +143,58 @@ public final class VelocitySessionListener {
         Player player =
                 event.getPlayer();
 
+        /*
+         * Only a normal, completed login that then ended counts as
+         * the player leaving. A duplicate login, a connection the
+         * proxy cancelled, or one cancelled before the player ever
+         * reached a backend is not combat logging.
+         */
+        if (event.getLoginStatus()
+                != DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN) {
+
+            punishmentGuard.markNonPunishableExit(
+                    player.getUniqueId()
+            );
+        }
+
+        /*
+         * The bypass permission has to be checked here, on the
+         * event's own player object: by the time the transition
+         * reaches the punishment gate the player is already gone
+         * from proxy.getPlayer(...), so a lookup there always came
+         * back empty and players with the bypass permission were
+         * punished for quitting anyway.
+         */
+        String bypassPermission =
+                config.getBypassPermission();
+
+        if (bypassPermission != null
+                && !bypassPermission.isBlank()) {
+
+            boolean bypassed;
+
+            try {
+                bypassed =
+                        player.hasPermission(
+                                bypassPermission
+                        );
+            } catch (RuntimeException exception) {
+                /*
+                 * Operations on a disconnected player are
+                 * documented as potentially undefined. When the
+                 * check cannot be trusted, err on the side of not
+                 * punishing.
+                 */
+                bypassed = true;
+            }
+
+            if (bypassed) {
+                punishmentGuard.markNonPunishableExit(
+                        player.getUniqueId()
+                );
+            }
+        }
+
         SessionTransition transition =
                 sessionManager.clusterExit(
                         player.getUniqueId()
@@ -126,6 +202,10 @@ public final class VelocitySessionListener {
 
         transitionConsumer.accept(
                 transition
+        );
+
+        punishmentGuard.forget(
+                player.getUniqueId()
         );
     }
 
