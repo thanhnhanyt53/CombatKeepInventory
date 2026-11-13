@@ -481,6 +481,25 @@ public final class ConfigValidator {
 
         checkBoolean(config, "worlds.enabled", issues);
         checkList(config, "worlds.disabled-worlds", issues);
+
+        if (Boolean.FALSE.equals(config.get("worlds.enabled"))
+                && !config.getStringList(
+                "worlds.disabled-worlds"
+        ).isEmpty()) {
+
+            issues.add(
+                    new Issue(
+                            Severity.WARNING,
+                            "worlds.enabled",
+                            "is false, so worlds.disabled-worlds "
+                                    + "is NOT checked at all and CKI "
+                                    + "runs in every world including "
+                                    + "the ones listed there. If you "
+                                    + "meant to exclude those "
+                                    + "worlds, set this back to true."
+                    )
+            );
+        }
     }
 
     private static void validateWorldGuard(
