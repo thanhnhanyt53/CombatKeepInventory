@@ -376,40 +376,26 @@ public final class CombatManager {
      *         of its own by design)
      */
     public java.util.List<UUID> cleanupExpired() {
-        long now =
-                System.currentTimeMillis();
 
-        Collection<CombatSession> before =
-                sessionManager.getActiveSessions();
-
-        sessionManager.cleanupExpiredSessions(now);
-
+        /*
+         * sweepExpired() transitions and removes expired sessions
+         * in one atomic pass, so every player it returns truly just
+         * expired and is already gone from the session manager --
+         * no separate removeSession() call needed here, and nothing
+         * is missed the way snapshotting getActiveSessions() first
+         * used to (see CombatSessionManager#sweepExpired javadoc:
+         * a session already past its expiry stops counting as
+         * "active" before the sweep even runs, so the old snapshot
+         * was always empty and timed-out sessions sat in the map
+         * forever).
+         */
         java.util.List<UUID> justExpired =
-                new java.util.ArrayList<>();
-
-        for (CombatSession previous : before) {
-
-            Optional<CombatSession> current =
-                    sessionManager.getSession(
-                            previous.getPlayerId()
-                    );
-
-            if (current.isPresent()
-                    && current.get().getState()
-                    == com.votri.combatkeepinv.core.combat.CombatState.EXPIRED) {
-
-                stateBridge.publishEnd(
-                        previous.getPlayerId()
+                sessionManager.sweepExpired(
+                        System.currentTimeMillis()
                 );
 
-                sessionManager.removeSession(
-                        previous.getPlayerId()
-                );
-
-                justExpired.add(
-                        previous.getPlayerId()
-                );
-            }
+        for (UUID playerId : justExpired) {
+            stateBridge.publishEnd(playerId);
         }
 
         return justExpired;
