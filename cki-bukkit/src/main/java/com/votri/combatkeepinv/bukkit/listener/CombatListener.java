@@ -78,6 +78,20 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        /*
+         * Checked first, before anything else in this method: it
+         * is the cheapest possible filter (one config read, no
+         * reflection, no attacker resolution) and the most common
+         * reason to ignore an event on a server with disabled
+         * worlds (creative/minigame/lobby worlds with constant
+         * entity damage). Every check below this point does real
+         * work, so excluding a whole world here is what keeps this
+         * handler cheap under heavy load instead of just correct.
+         */
+        if (plugin.isWorldDisabled(victim.getWorld())) {
+            return;
+        }
+
         debugDamageReceived(
                 event,
                 victim
@@ -115,10 +129,13 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        /*
+         * victim's world was already checked above; attacker's
+         * world can still differ (e.g. a projectile crossing a
+         * portal boundary).
+         */
         if (plugin.isWorldDisabled(
                 attacker.getWorld()
-        ) || plugin.isWorldDisabled(
-                victim.getWorld()
         )) {
             debugDamageIgnored(
                     "CKI is disabled in this world."
@@ -238,6 +255,17 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        /*
+         * Cheapest check first, before even looking at the damage
+         * cause -- this method runs on EVERY damage a player takes
+         * (fall, fire, drowning, all of it), not just explosions,
+         * so skipping disabled worlds here matters more than in
+         * the other handlers.
+         */
+        if (plugin.isWorldDisabled(victim.getWorld())) {
+            return;
+        }
+
         EntityDamageEvent.DamageCause cause =
                 event.getCause();
 
@@ -284,10 +312,16 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        /*
+         * victim's world was already checked above; the igniter
+         * found by findRecentExplosionOwner() is matched by world
+         * UUID already (see that method), so attacker and victim
+         * are always in the same world here. attacker's world is
+         * still checked as a cheap defensive guard in case that
+         * ever changes.
+         */
         if (plugin.isWorldDisabled(
                 attacker.getWorld()
-        ) || plugin.isWorldDisabled(
-                victim.getWorld()
         )) {
             debugDamageIgnored(
                     "CKI is disabled in this world."
@@ -345,6 +379,18 @@ public final class CombatListener implements Listener {
         }
 
         if (!(event.getEntity() instanceof TNTPrimed tnt)) {
+            return;
+        }
+
+        /*
+         * Cheapest possible check first: skip entirely in a
+         * disabled world instead of still resolving the igniter
+         * and recording an attribution nobody will ever use (every
+         * TNTPrimed fires this once, so on a server with several
+         * disabled worlds -- a minigame lobby, for example -- this
+         * avoids tracking explosions that can never matter).
+         */
+        if (plugin.isWorldDisabled(tnt.getWorld())) {
             return;
         }
 
