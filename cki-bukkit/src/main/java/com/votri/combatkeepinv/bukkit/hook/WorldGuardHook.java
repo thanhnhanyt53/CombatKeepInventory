@@ -5,17 +5,51 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Reflection-based bridge to WorldGuard (kept reflective so
+ * cki-bukkit does not need WorldGuard/WorldEdit as a compile-time
+ * dependency).
+ *
+ * <p>Every {@code Class}/{@code Method}/{@code Field} this needs is
+ * resolved exactly once, in {@link #detect()}, and reused for every
+ * later PvP check. Resolving them again on every hit (as this class
+ * used to) is the single most expensive thing a reflective
+ * integration can do on a busy server -- a world with constant PvP
+ * can mean thousands of these checks a second, and each one used to
+ * do roughly a dozen {@code Class.forName}/{@code getMethod} calls.
+ * A failure during {@link #detect()} is treated exactly like
+ * WorldGuard not being installed: {@link #isAvailable()} is false
+ * and every check falls back to {@code worldguard.fail-open}.</p>
+ */
 public final class WorldGuardHook {
 
     private final CombatKeepInventory plugin;
 
-    private boolean available;
+    private volatile boolean available;
+
     private Object worldGuard;
+    private Object pvpFlag;
+
+    /** Reusable {@code StateFlag[]{Flags.PVP}}; never mutated after detect(). */
+    private Object pvpFlagArray;
+
+    private Method getPlatform;
+    private Method getRegionContainer;
+    private Method createQuery;
+    private Method containerGet;
+    private Method adaptWorld;
+    private Method adaptLocation;
+    private Method asBlockVector;
+    private Method getApplicableRegions;
+    private Method getRegions;
+    private Method regionGetId;
+    private Method testState;
 
     public WorldGuardHook(
             CombatKeepInventory plugin
@@ -26,6 +60,11 @@ public final class WorldGuardHook {
         detect();
     }
 
+    /**
+     * Looks up WorldGuard and resolves every reflective handle this
+     * class will ever need. Called once from the constructor; never
+     * again on the hot path.
+     */
     private void detect() {
 
         if (!plugin.getConfig().getBoolean(
@@ -58,28 +97,156 @@ public final class WorldGuardHook {
                             "com.sk89q.worldguard.WorldGuard"
                     );
 
-            Method getInstance =
-                    worldGuardClass.getMethod(
-                            "getInstance"
-                    );
-
             worldGuard =
-                    getInstance.invoke(
-                            null
+                    worldGuardClass.getMethod("getInstance")
+                            .invoke(null);
+
+            if (worldGuard == null) {
+                available = false;
+                return;
+            }
+
+            getPlatform =
+                    worldGuard.getClass().getMethod("getPlatform");
+
+            Object platform =
+                    getPlatform.invoke(worldGuard);
+
+            getRegionContainer =
+                    platform.getClass()
+                            .getMethod("getRegionContainer");
+
+            Object container =
+                    getRegionContainer.invoke(platform);
+
+            createQuery =
+                    container.getClass().getMethod("createQuery");
+
+            /*
+             * BukkitAdapter lives in WorldEdit (a WorldGuard
+             * dependency), NOT in WorldGuard's own "bukkit"
+             * package. A previous version of this class looked for
+             * "com.sk89q.worldguard.bukkit.BukkitAdapter", which
+             * does not exist on any real install, so every call
+             * always threw ClassNotFoundException -- silently
+             * caught, always falling back to worldguard.fail-open.
+             * In practice this meant region checks never ran at
+             * all, regardless of how regions were configured.
+             */
+            Class<?> adapterClass =
+                    Class.forName(
+                            "com.sk89q.worldedit.bukkit.BukkitAdapter"
                     );
 
-            available =
-                    worldGuard != null;
+            Class<?> weWorldClass =
+                    Class.forName(
+                            "com.sk89q.worldedit.world.World"
+                    );
+
+            Class<?> weLocationClass =
+                    Class.forName(
+                            "com.sk89q.worldedit.util.Location"
+                    );
+
+            Class<?> blockVectorClass =
+                    Class.forName(
+                            "com.sk89q.worldedit.math.BlockVector3"
+                    );
+
+            Class<?> regionAssociableClass =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.association.RegionAssociable"
+                    );
+
+            Class<?> stateFlagClass =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.flags.StateFlag"
+                    );
+
+            Class<?> flagsClass =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.flags.Flags"
+                    );
+
+            Class<?> protectedRegionClass =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.regions.ProtectedRegion"
+                    );
+
+            adaptWorld =
+                    adapterClass.getMethod(
+                            "adapt",
+                            org.bukkit.World.class
+                    );
+
+            adaptLocation =
+                    adapterClass.getMethod(
+                            "adapt",
+                            Location.class
+                    );
+
+            asBlockVector =
+                    adapterClass.getMethod(
+                            "asBlockVector",
+                            Location.class
+                    );
+
+            containerGet =
+                    container.getClass().getMethod(
+                            "get",
+                            weWorldClass
+                    );
+
+            getApplicableRegions =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.managers.RegionManager"
+                    ).getMethod(
+                            "getApplicableRegions",
+                            blockVectorClass
+                    );
+
+            getRegions =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.ApplicableRegionSet"
+                    ).getMethod("getRegions");
+
+            regionGetId =
+                    protectedRegionClass.getMethod("getId");
+
+            testState =
+                    Class.forName(
+                            "com.sk89q.worldguard.protection.regions.RegionQuery"
+                    ).getMethod(
+                            "testState",
+                            weLocationClass,
+                            regionAssociableClass,
+                            Array.newInstance(stateFlagClass, 0).getClass()
+                    );
+
+            pvpFlag =
+                    flagsClass.getField("PVP").get(null);
+
+            pvpFlagArray =
+                    Array.newInstance(stateFlagClass, 1);
+
+            Array.set(pvpFlagArray, 0, pvpFlag);
+
+            available = true;
 
         } catch (Throwable throwable) {
 
             available = false;
             worldGuard = null;
 
-            debug(
-                    "Failed to initialize WorldGuard hook: "
-                            + throwable.getClass()
-                                    .getSimpleName()
+            plugin.getLogger().warning(
+                    "WorldGuard was found but its API could not be "
+                            + "linked ("
+                            + throwable
+                            + "); PvP region checks are disabled "
+                            + "(worldguard.fail-open decides the "
+                            + "outcome). This usually means an "
+                            + "unsupported WorldGuard/WorldEdit "
+                            + "build."
             );
         }
     }
@@ -242,13 +409,13 @@ public final class WorldGuardHook {
                 }
             }
 
-            Boolean pvpFlag =
+            Boolean pvpAllowed =
                     queryPvpFlag(
                             location
                     );
 
-            if (pvpFlag != null
-                    && !pvpFlag) {
+            if (pvpAllowed != null
+                    && !pvpAllowed) {
 
                 debug(
                         "Denied: WorldGuard PVP flag resolves to "
@@ -297,84 +464,23 @@ public final class WorldGuardHook {
         }
 
         Object platform =
-                worldGuard.getClass()
-                        .getMethod("getPlatform")
-                        .invoke(worldGuard);
+                getPlatform.invoke(worldGuard);
 
         Object container =
-                platform.getClass()
-                        .getMethod("getRegionContainer")
-                        .invoke(platform);
+                getRegionContainer.invoke(platform);
 
         Object query =
-                container.getClass()
-                        .getMethod("createQuery")
-                        .invoke(container);
-
-        Class<?> adapterClass =
-                Class.forName(
-                        "com.sk89q.worldedit.bukkit.BukkitAdapter"
-                );
+                createQuery.invoke(container);
 
         Object weLocation =
-                adapterClass.getMethod(
-                        "adapt",
-                        Location.class
-                ).invoke(
-                        null,
-                        location
-                );
-
-        Class<?> weLocationClass =
-                Class.forName(
-                        "com.sk89q.worldedit.util.Location"
-                );
-
-        Class<?> regionAssociableClass =
-                Class.forName(
-                        "com.sk89q.worldguard.protection.association.RegionAssociable"
-                );
-
-        Class<?> stateFlagClass =
-                Class.forName(
-                        "com.sk89q.worldguard.protection.flags.StateFlag"
-                );
-
-        Class<?> flagsClass =
-                Class.forName(
-                        "com.sk89q.worldguard.protection.flags.Flags"
-                );
-
-        Object pvpFlag =
-                flagsClass.getField("PVP")
-                        .get(null);
-
-        Object stateFlagArray =
-                java.lang.reflect.Array.newInstance(
-                        stateFlagClass,
-                        1
-                );
-
-        java.lang.reflect.Array.set(
-                stateFlagArray,
-                0,
-                pvpFlag
-        );
-
-        Method testState =
-                query.getClass().getMethod(
-                        "testState",
-                        weLocationClass,
-                        regionAssociableClass,
-                        stateFlagArray.getClass()
-                );
+                adaptLocation.invoke(null, location);
 
         Object result =
                 testState.invoke(
                         query,
                         weLocation,
                         null,
-                        stateFlagArray
+                        pvpFlagArray
                 );
 
         return (Boolean) result;
@@ -391,49 +497,11 @@ public final class WorldGuardHook {
             return result;
         }
 
-        Method getPlatform =
-                worldGuard.getClass()
-                        .getMethod(
-                                "getPlatform"
-                        );
-
         Object platform =
-                getPlatform.invoke(
-                        worldGuard
-                );
-
-        Method getRegionContainer =
-                platform.getClass()
-                        .getMethod(
-                                "getRegionContainer"
-                        );
+                getPlatform.invoke(worldGuard);
 
         Object container =
-                getRegionContainer.invoke(
-                        platform
-                );
-
-        /*
-         * BukkitAdapter lives in WorldEdit (a WorldGuard
-         * dependency), NOT in WorldGuard's own "bukkit" package.
-         * The previous "com.sk89q.worldguard.bukkit.BukkitAdapter"
-         * path does not exist on any real install, so every call
-         * here always threw ClassNotFoundException -- silently
-         * caught below, always falling back to
-         * worldguard.fail-open (true by default). In practice
-         * this meant WorldGuard region checks never ran at all,
-         * regardless of how regions were configured.
-         */
-        Class<?> adapter =
-                Class.forName(
-                        "com.sk89q.worldedit.bukkit.BukkitAdapter"
-                );
-
-        Method adaptWorld =
-                adapter.getMethod(
-                        "adapt",
-                        org.bukkit.World.class
-                );
+                getRegionContainer.invoke(platform);
 
         Object adaptedWorld =
                 adaptWorld.invoke(
@@ -441,17 +509,8 @@ public final class WorldGuardHook {
                         location.getWorld()
                 );
 
-        Method get =
-                container.getClass()
-                        .getMethod(
-                                "get",
-                                Class.forName(
-                                        "com.sk89q.worldedit.world.World"
-                                )
-                        );
-
         Object regionManager =
-                get.invoke(
+                containerGet.invoke(
                         container,
                         adaptedWorld
                 );
@@ -460,26 +519,11 @@ public final class WorldGuardHook {
             return result;
         }
 
-        Method adaptLocation =
-                adapter.getMethod(
-                        "asBlockVector",
-                        Location.class
-                );
-
         Object vector =
-                adaptLocation.invoke(
+                asBlockVector.invoke(
                         null,
                         location
                 );
-
-        Method getApplicableRegions =
-                regionManager.getClass()
-                        .getMethod(
-                                "getApplicableRegions",
-                                Class.forName(
-                                        "com.sk89q.worldedit.math.BlockVector3"
-                                )
-                        );
 
         Object applicable =
                 getApplicableRegions.invoke(
@@ -487,37 +531,18 @@ public final class WorldGuardHook {
                         vector
                 );
 
-        Method getRegions =
-                applicable.getClass()
-                        .getMethod(
-                                "getRegions"
-                        );
-
         Object regions =
-                getRegions.invoke(
-                        applicable
-                );
+                getRegions.invoke(applicable);
 
         if (regions instanceof Collection<?> collection) {
 
             for (Object region : collection) {
 
-                Method getId =
-                        region.getClass()
-                                .getMethod(
-                                        "getId"
-                                );
-
                 Object id =
-                        getId.invoke(
-                                region
-                        );
+                        regionGetId.invoke(region);
 
                 if (id != null) {
-
-                    result.add(
-                            String.valueOf(id)
-                    );
+                    result.add(String.valueOf(id));
                 }
             }
         }
