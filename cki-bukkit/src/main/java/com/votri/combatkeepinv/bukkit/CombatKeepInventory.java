@@ -7,6 +7,7 @@ import com.votri.combatkeepinv.bukkit.combat.CombatManager;
 import com.votri.combatkeepinv.bukkit.command.CombatCommand;
 import com.votri.combatkeepinv.bukkit.config.ConfigValidator;
 import com.votri.combatkeepinv.bukkit.config.ReloadResult;
+import com.votri.combatkeepinv.bukkit.config.WorldFilter;
 import com.votri.combatkeepinv.bukkit.debug.DebugManager;
 import com.votri.combatkeepinv.bukkit.detector.PvPManagerDetector;
 import com.votri.combatkeepinv.bukkit.version.VersionAdapter;
@@ -41,7 +42,6 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
-import org.bstats.bukkit.Metrics;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,7 +56,7 @@ public final class CombatKeepInventory extends JavaPlugin {
     public static final String PLUGIN_VERSION =
             "1.2.6-beta";
 
-    private static final int CONFIG_VERSION = 5;
+    private static final int CONFIG_VERSION = 4;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -92,9 +92,6 @@ public final class CombatKeepInventory extends JavaPlugin {
          * CONFIGURATION
          * ==========================================================
          */
-
-        int pluginId = 34903; // Thay bằng ID thật
-        new Metrics(this, pluginId);
 
         migrateConfigIfRequired();
         saveDefaultConfig();
@@ -1482,22 +1479,33 @@ public final class CombatKeepInventory extends JavaPlugin {
             return true;
         }
 
-        if (!getConfig().getBoolean(
-                "worlds.enabled",
-                true
-        )) {
+        return isWorldNameDisabled(
+                world.getName()
+        );
+    }
 
-            return false;
+    /**
+     * Same decision as {@link #isWorldDisabled(World)}, taking a
+     * plain world name instead of a Bukkit {@code World}.
+     */
+    boolean isWorldNameDisabled(
+            String worldName
+    ) {
+
+        if (worldName == null) {
+            return true;
         }
 
-        return getConfig()
-                .getStringList(
+        return WorldFilter.isDisabled(
+                getConfig().getBoolean(
+                        "worlds.enabled",
+                        true
+                ),
+                getConfig().getStringList(
                         "worlds.disabled-worlds"
-                )
-                .stream()
-                .anyMatch(
-                        world.getName()::equalsIgnoreCase
-                );
+                ),
+                worldName
+        );
     }
 
     /*
