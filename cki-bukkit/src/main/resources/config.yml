@@ -2,7 +2,7 @@
 # CombatKeepInventory
 # ============================================================
 
-config-version: 5
+config-version: 4
 
 # ============================================================
 # Platform
@@ -123,11 +123,21 @@ inventory:
 
 worlds:
 
-  # Enables disabled-world checking.
+  # Master switch for the disabled-worlds list below.
+  #
+  # true  = worlds listed in disabled-worlds are ignored by CKI
+  #         (the normal setting).
+  # false = the disabled-worlds list is NOT checked at all, so
+  #         CKI is active in EVERY world, including any listed
+  #         there. This does not disable CKI -- it disables the
+  #         exclusion feature, which has the opposite effect of
+  #         what the name suggests at a glance. Leave this true
+  #         and use disabled-worlds to exclude specific worlds.
   enabled: true
 
   # CombatKeepInventory will completely ignore combat/death
-  # processing in these worlds.
+  # processing in these worlds. Only read while worlds.enabled
+  # is true.
   disabled-worlds: []
 
 
