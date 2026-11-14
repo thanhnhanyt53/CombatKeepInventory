@@ -34,7 +34,7 @@ import java.util.UUID;
 @Plugin(
         id = "combatkeepinventory",
         name = "CombatKeepInventory",
-        version = "1.2.6-beta",
+        version = "1.2.6-release",
         authors = {
                 "ThanhNhan"
         }
