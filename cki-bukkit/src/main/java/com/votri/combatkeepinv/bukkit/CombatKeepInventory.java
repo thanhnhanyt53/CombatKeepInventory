@@ -50,13 +50,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.bstats.bukkit.Metrics;
 
 public final class CombatKeepInventory extends JavaPlugin {
 
     public static final String PLUGIN_VERSION =
-            "1.2.6-beta";
+            "1.2.6-release";
 
-    private static final int CONFIG_VERSION = 4;
+    private static final int CONFIG_VERSION = 6;
 
     private CombatManager combatManager;
     private BukkitCombatService combatService;
@@ -92,6 +93,8 @@ public final class CombatKeepInventory extends JavaPlugin {
          * CONFIGURATION
          * ==========================================================
          */
+        int pluginId = 34903; // Thay bằng ID thật
+        new Metrics(this, pluginId);
 
         migrateConfigIfRequired();
         saveDefaultConfig();
