@@ -6,6 +6,7 @@ import com.votri.combatkeepinv.core.combat.CombatSessionManager;
 import com.votri.combatkeepinv.core.combat.CombatState;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -210,19 +211,57 @@ public final class DefaultCombatSessionManager
     public void cleanupExpiredSessions(
             long currentTimeMillis
     ) {
-        sessions.forEach(
-                (playerId, session) -> {
+        sweepExpired(currentTimeMillis);
+    }
 
-                    if (session.getState() == CombatState.ACTIVE
-                            && currentTimeMillis
-                            >= session.getExpiresAt()) {
+    @Override
+    public List<UUID> sweepExpired(
+            long currentTimeMillis
+    ) {
+
+        List<UUID> expired =
+                new ArrayList<>();
+
+        /*
+         * One pass, one decision per entry: computeIfPresent holds
+         * the bucket lock for that single key only (ConcurrentHashMap),
+         * so this is safe to run every tick alongside start/refresh
+         * calls for other players without a global lock and without
+         * the two-step "snapshot then sweep" race that used to leave
+         * expired sessions in the map forever.
+         */
+        for (UUID playerId : sessions.keySet()) {
+
+            sessions.computeIfPresent(
+                    playerId,
+                    (id, session) -> {
+
+                        if (session.getState() != CombatState.ACTIVE
+                                || currentTimeMillis
+                                < session.getExpiresAt()) {
+
+                            return session;
+                        }
 
                         session.end(
                                 CombatState.EXPIRED,
                                 CombatReason.TIMEOUT
                         );
+
+                        expired.add(id);
+
+                        /*
+                         * Returning null removes the entry: nothing
+                         * else cleans up a timed-out session that no
+                         * one looks up again, so leaving it here
+                         * would grow the map without bound on a busy
+                         * server.
+                         */
+                        return null;
                     }
-                }
-        );
+            );
+        }
+
+        return expired;
     }
 }
